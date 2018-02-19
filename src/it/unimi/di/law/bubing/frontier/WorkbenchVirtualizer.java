@@ -7,6 +7,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.util.PriorityQueue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,7 @@ import it.unimi.dsi.fastutil.io.FastBufferedInputStream;
 import it.unimi.dsi.fastutil.io.FastBufferedOutputStream;
 import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectMap;
+import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 
 //RELEASE-STATUS: DIST
 
@@ -63,6 +65,8 @@ public class WorkbenchVirtualizer implements Closeable {
 	/** The directory containing the virtualizer files. */
 	private final File directory;
 
+        public final Reference2ObjectOpenHashMap<VisitState, Long> visitState2nextFetch;
+
 	/** Creates the virtualizer.
 	 *
 	 * @param frontier the frontier instantiating this virtualizer.
@@ -72,6 +76,7 @@ public class WorkbenchVirtualizer implements Closeable {
 		directory = new File(frontier.rc.frontierDir, "virtualizer");
 		directory.mkdir();
 		byteArrayDiskQueues = new ByteArrayDiskQueues(directory);
+                visitState2nextFetch = new Reference2ObjectOpenHashMap<>();
 	}
 
 	/** Dequeues at most the given number of path+queries into the given visit state.
@@ -87,7 +92,50 @@ public class WorkbenchVirtualizer implements Closeable {
 	public int dequeuePathQueries(final VisitState visitState, final int maxUrls) throws IOException {
 		if (maxUrls == 0) return 0;
 		final int dequeued = (int)Math.min(maxUrls, byteArrayDiskQueues.count(visitState));
-		for(int i = dequeued; i-- != 0;) visitState.enqueuePathQuery(byteArrayDiskQueues.dequeue(visitState));
+		byte[] pathQuery = byteArrayDiskQueues.dequeue(visitState);
+		final PathQueryState pathQueryState = new PathQueryState(visitState, pathQuery);
+		for(int i = dequeued; i-- != 0;) visitState.enqueuePathQuery(pathQueryState);
+		return dequeued;
+	}
+
+	/** Dequeues at most the given number of path+queries into the given visit state.
+	 * 
+	 * <p>Note that the path+queries are directly enqueued into the visit state using 
+	 * {@link VisitState#enqueuePathQuery(byte[])}.
+	 * 
+	 * @param visitState the visitState in which path+queries will be moved.
+	 * @param maxUrls the maximum number of path+queries to move.
+	 * @return the number of actually dequeued path+queries.
+	 * @throws IOException 
+	 */
+	public int dequeuePathQueriesState( final VisitState visitState, final int maxUrls ) throws IOException {
+		if ( maxUrls == 0 ) return 0;
+		int dequeued = 0;
+		long nextFetch = Long.MAX_VALUE;
+		long now = System.currentTimeMillis();
+		PriorityQueue<PathQueryState> pathQueries = new PriorityQueue<>();
+
+		for( int i = (int)byteArrayDiskQueues.count( visitState ); i-- != 0; ) {
+                	byte[] bytes = byteArrayDiskQueues.dequeue( visitState );
+			final PathQueryState pathQueryState = PathQueryState.bytesToPathQueryState( visitState, bytes );
+			pathQueries.add( pathQueryState );
+		}
+
+		for( int i = pathQueries.size(); i-- != 0; ) {
+			final PathQueryState pathQuery = pathQueries.poll();
+			if ( pathQuery.nextFetch < now && dequeued < maxUrls ) {
+				visitState.enqueuePathQuery( pathQuery );
+				dequeued++;
+			} else {
+				this.enqueuePathQueryState( visitState, pathQuery );
+				if ( pathQuery.nextFetch < nextFetch ) {
+					nextFetch = pathQuery.nextFetch;
+				}
+			}
+		}
+
+		visitState2nextFetch.put( visitState, nextFetch );
+
 		return dequeued;
 	}
 
@@ -127,6 +175,29 @@ public class WorkbenchVirtualizer implements Closeable {
 		final byte[] urlBuffer = url.elements();
 		final int pathQueryStart = BURL.startOfpathAndQuery(urlBuffer);
 		byteArrayDiskQueues.enqueue(visitState,  urlBuffer, pathQueryStart, url.size() - pathQueryStart);
+	}
+
+	/**
+	 *  
+ 	 * @param visitState
+	 * @param pathQuery 
+	 * @throws IOException 
+	 */
+	public void enqueuePathQueryState(VisitState visitState, final PathQueryState pathQuery) throws IOException {
+
+		byte[] serialized = PathQueryState.pathQueryStateToBytes(pathQuery);
+		byteArrayDiskQueues.enqueue(visitState, serialized, 0, serialized.length);
+		if (visitState2nextFetch.get(visitState) == null || visitState2nextFetch.get(visitState) > pathQuery.nextFetch) {
+			visitState2nextFetch.put(visitState, pathQuery.nextFetch);
+		}
+	}
+
+	public boolean isReadyVisitState(VisitState visitState) {
+		return byteArrayDiskQueues.count(visitState) > 0 && visitState2nextFetch.get(visitState) < System.currentTimeMillis();
+	}
+        
+	public long nextFetch(VisitState visitState) {
+		return visitState2nextFetch.get(visitState);
 	}
 
 	/** Performs a garbage collection if the space used is below a given threshold, reaching a given target ratio.

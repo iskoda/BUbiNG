@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import it.unimi.di.law.bubing.RuntimeConfiguration;
 import it.unimi.di.law.bubing.parser.HTMLParser;
+import it.unimi.di.law.bubing.parser.KnotDedupTextProcessor;
 import it.unimi.di.law.bubing.parser.Parser;
 import it.unimi.di.law.bubing.parser.Parser.LinkReceiver;
 import it.unimi.di.law.bubing.parser.SpamTextProcessor;
@@ -39,6 +40,7 @@ import it.unimi.di.law.bubing.util.BURL;
 import it.unimi.di.law.bubing.util.FetchData;
 import it.unimi.di.law.bubing.util.Link;
 import it.unimi.di.law.bubing.util.URLRespectsRobots;
+import it.unimi.di.law.knot.KnotDedup;
 import it.unimi.di.law.warc.filters.Filter;
 import it.unimi.di.law.warc.records.HttpResponseWarcRecord;
 import it.unimi.dsi.Util;
@@ -47,6 +49,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import it.unimi.dsi.fastutil.shorts.Short2ShortMap;
+import java.util.List;
 
 //RELEASE-STATUS: DIST
 
@@ -245,12 +248,24 @@ public class ParsingThread extends Thread {
 	@SuppressWarnings("unchecked")
 	@Override
 	public void run() {
+		KnotDedup dedupWorker = null;
+              
+		try {
+			if(frontier.rc.knotDedup != null) {
+				dedupWorker = frontier.rc.knotDedup.copy();
+				dedupWorker.connect();
+			}   
+		} catch (IOException ex) {
+   
+		}
+            
 		try {
 			final RuntimeConfiguration rc = frontier.rc;
 			final FrontierEnqueuer frontierLinkReceiver = new FrontierEnqueuer(frontier, rc);
 
 			for(;;) {
 				rc.ensureNotPaused();
+				PathQueryState firstPath;
 
 				FetchData fetchData;
 				for(int i = 0; (fetchData = frontier.results.poll()) == null; i++) {
@@ -309,8 +324,8 @@ public class ParsingThread extends Thread {
 						continue;
 					}
 					else {
-						final byte[] firstPath = visitState.dequeue();
-						if (LOGGER.isTraceEnabled()) LOGGER.trace("Dequeuing " + it.unimi.di.law.bubing.util.Util.toString(firstPath) + " after fetching " + fetchData.uri() + "; " + (visitState.isEmpty() ? "visit state is now empty " : " first path now is " + it.unimi.di.law.bubing.util.Util.toString(visitState.firstPath())));
+						firstPath = visitState.dequeue();      // TODO(kondrej) nextFetch
+						if ( LOGGER.isTraceEnabled() ) LOGGER.trace( "Dequeuing " + it.unimi.di.law.bubing.util.Util.toString( firstPath.pathQuery ) + " after fetching " + fetchData.uri() + "; " + ( visitState.isEmpty() ? "visit state is now empty " : " first path now is " + it.unimi.di.law.bubing.util.Util.toString( visitState.firstPath().pathQuery ) ) );
 						visitState.nextFetch = fetchData.endTime + rc.schemeAuthorityDelay; // Regular delay
 					}
 
@@ -360,6 +375,12 @@ public class ParsingThread extends Thread {
 													LOGGER.info("Spammicity for " + visitState + ": " + visitState.spammicity + " (" + visitState.termCountUpdates + " updates)");
 												}
 											}
+											if (dedupWorker != null) {
+												final Object result = parser.result();
+												if (result instanceof KnotDedupTextProcessor.Paragraphs) {
+													dedupWorker.setParagraphs((List<CharSequence>)result);
+                                                                                                }
+                                                                                        }
 										} catch(final BufferOverflowException e) {
 											LOGGER.warn("Buffer overflow during parsing of " + url + " with " + parser);
 										} catch(final IOException e) {
@@ -393,17 +414,34 @@ public class ParsingThread extends Thread {
 						digest = fetchData.binaryParser.parse(fetchData.uri(), fetchData.response(), null);
 					}
 
-					final boolean isNotDuplicate = streamLength == 0 || frontier.digests.addHash(digest); // Essentially thread-safe; we do not consider zero-content pages as duplicates
+					boolean isNotDuplicate = streamLength == 0 || frontier.digests.addHash(digest); // Essentially thread-safe; we do not consider zero-content pages as duplicates
+					if ( dedupWorker != null && isNotDuplicate ) {
+						final long time = System.nanoTime();
+						float duplicityRate = dedupWorker.duplicityRate();
+						if( !Float.isNaN( duplicityRate ) && duplicityRate > rc.deduplicationThreshold ) {
+							isNotDuplicate = false;
+						}
+						dedupWorker.setParagraphs( null );
+						final long time2 = System.nanoTime();
+						LOGGER.info( "Deduplicate time {}", (time2 - time ) );
+						LOGGER.info( "Duplicity rate of {} is {} isNotDuplicate={}", url, duplicityRate, Boolean.valueOf( isNotDuplicate ) );
+					}
+
 					if (LOGGER.isTraceEnabled()) LOGGER.trace("Decided that for {} isNotDuplicate={}", url, Boolean.valueOf(isNotDuplicate));
 					if (isNotDuplicate) for(final URI u: linkReceiver) frontierLinkReceiver.enqueue(u);
 					else fetchData.isDuplicate(true);
 
+					final long modifiedTime = firstPath.modified;
+					if (rc.revisitFilter.apply(fetchData)) {
+						rc.revisitScheduler.schedule(fetchData, firstPath, isNotDuplicate);
+						this.frontier.revisit.add(firstPath);
+					}
 					// ALERT: store exceptions should cause shutdown.
 					final String result;
 					if (mustBeStored) {
 						if (isNotDuplicate) {
 							// Soft, so we can change maxUrlsPerSchemeAuthority at runtime sensibly.
-							if (frontier.schemeAuthority2Count.addTo(visitState.schemeAuthority, 1) >= rc.maxUrlsPerSchemeAuthority - 1) {
+							if (modifiedTime == PathQueryState.FIRST_VISIT && frontier.schemeAuthority2Count.addTo(visitState.schemeAuthority, 1) >= rc.maxUrlsPerSchemeAuthority - 1) {
 								LOGGER.info("Reached maximum number of URLs for scheme+authority " + it.unimi.di.law.bubing.util.Util.toString(visitState.schemeAuthority));
 								visitState.schedulePurge();
 							}

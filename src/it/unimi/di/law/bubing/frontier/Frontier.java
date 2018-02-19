@@ -59,6 +59,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Date;
+import java.util.PriorityQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -315,6 +316,8 @@ public class Frontier implements JobListener<BubingJob>, AbstractSieve.NewFlowRe
 	 * threads} and emptied by the {@link Distributor}. */
 	protected final LockFreeQueue<VisitState> refill;
 
+	protected final LockFreeQueue<PathQueryState> revisit;
+
 	/** The current estimation for the size of the front in IP addresses. It is adaptively increased
 	 * when a {@link FetchingThread} has to wait to retrieve a {@link VisitState} from the
 	 * {@link #todo} queue. It is never more than half the {@linkplain #workbenchSizeInPathQueries
@@ -478,6 +481,7 @@ public class Frontier implements JobListener<BubingJob>, AbstractSieve.NewFlowRe
 		todo = new LockFreeQueue<>();
 		done = new LockFreeQueue<>();
 		refill = new LockFreeQueue<>();
+		revisit = new LockFreeQueue<>();
 		results = new LockFreeQueue<>();
 		distributor = new Distributor(this);
 

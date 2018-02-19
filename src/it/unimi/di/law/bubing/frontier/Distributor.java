@@ -17,9 +17,12 @@ package it.unimi.di.law.bubing.frontier;
  */
 
 
+import it.unimi.di.law.bubing.frontier.revisit.RevisitState;
 import it.unimi.di.law.bubing.util.BURL;
 import it.unimi.dsi.Util;
 import it.unimi.dsi.fastutil.bytes.ByteArrayList;
+import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
+import java.util.PriorityQueue;
 
 import java.util.concurrent.TimeUnit;
 
@@ -81,6 +84,10 @@ public final class Distributor extends Thread {
 	/** The last time we checked for visit states to be purged. */
 	protected volatile long lastPurgeCheck;
 
+	protected volatile PriorityQueue<RevisitState> revisit;
+	
+	public final Reference2ObjectOpenHashMap<VisitState, RevisitState> visitState2RevisitState;
+
 	/** Creates a distributor for the given frontier.
 	 *
 	 * @param frontier the frontier instantiating this distribution.
@@ -88,9 +95,11 @@ public final class Distributor extends Thread {
 	public Distributor(final Frontier frontier) {
 		this.frontier = frontier;
 		this.schemeAuthority2VisitState = new VisitStateSet();
+		this.visitState2RevisitState = new Reference2ObjectOpenHashMap<>();
 		setName(this.getClass().getSimpleName());
 		setPriority(Thread.MAX_PRIORITY);
 		statsThread = new StatsThread(frontier, this);
+		revisit = new PriorityQueue<RevisitState>();
 	}
 
 	@Override
@@ -108,24 +117,59 @@ public final class Distributor extends Thread {
 				final boolean workbenchIsFull = frontier.workbenchIsFull();
 				final boolean frontIsSmall = frontIsSmall();
 
+				PathQueryState pathQueryToRevisit = frontier.revisit.poll();
+				if ( pathQueryToRevisit != null ) {
+					round = -1;
+					VisitState visitState = pathQueryToRevisit.visitState;
+					LOGGER.info( "Revisit url {}", pathQueryToRevisit );
+					frontier.virtualizer.enqueuePathQueryState( visitState, pathQueryToRevisit );
+
+					long nextFetch = frontier.virtualizer.nextFetch( visitState );
+					RevisitState revisitState = visitState2RevisitState.get( visitState );
+
+					if ( revisitState == null ) {
+						revisitState = new RevisitState( visitState );
+						visitState2RevisitState.put( visitState, revisitState );
+					}
+
+					if ( revisitState.nextFetch > nextFetch ) {
+						this.revisit.remove( revisitState );
+						revisitState.nextFetch = nextFetch;
+						this.revisit.add( revisitState );
+					}
+				}
+
+				RevisitState readyToRevisit = this.revisit.peek();
+				if ( readyToRevisit != null && readyToRevisit.nextFetch < now ) {
+					round = -1;
+					this.revisit.poll();
+					VisitState visitState = readyToRevisit.visitState;
+					readyToRevisit.nextFetch = Long.MAX_VALUE;
+					LOGGER.info( "Ready to revisit: " + visitState );
+					if ( visitState.isEmpty() && !visitState.acquired ) {
+						frontier.refill.add( visitState );
+					}
+				}
+
 				/* The basic logic of workbench updates is that if the front is large enough, we don't do anything.
 				 * In this way we both automatically batch disk reads and reduce core memory usage. The required
 				 * front size is adaptively set by FetchingThread instances when they detect that the
 				 * visit states in the todo list plus workbench.size() is below the current required size
 				 * (i.e., we are counting IPs). */
-				if (! workbenchIsFull) {
+                                else if (! workbenchIsFull) {
 					synchronized(frontier.sieve) {} // We stop here if we are flushing.
 
 					VisitState visitState = frontier.refill.poll();
 					if (visitState != null) { // The priority is given to already started visits
 						round = -1;
 						if (frontier.virtualizer.count(visitState) == 0) LOGGER.info("No URLs on disk during refill: " + visitState);
+						else if ( !frontier.virtualizer.isReadyVisitState( visitState ) ) LOGGER.info( "No ready URLs on disk during refill: " + visitState );
 						else {
 							// Note that this might make temporarily the workbench too big by a little bit.
 							final int pathQueryLimit = visitState.pathQueryLimit();
 							if (LOGGER.isDebugEnabled()) LOGGER.debug("Refilling {} with {} URLs", visitState, Integer.valueOf(pathQueryLimit));
 							visitState.checkRobots(now);
-							final int dequeuedURLs = frontier.virtualizer.dequeuePathQueries(visitState, pathQueryLimit);
+							final int dequeuedURLs = frontier.virtualizer.dequeuePathQueriesState(visitState, pathQueryLimit);
 							movedFromQueues += dequeuedURLs;
 						}
 					}
@@ -146,6 +190,7 @@ public final class Distributor extends Thread {
 							final ByteArrayList url = frontier.readyURLs.buffer();
 							final byte[] urlBuffer = url.elements();
 							final int startOfpathAndQuery = BURL.startOfpathAndQuery(urlBuffer);
+							final byte[] pathQuery = BURL.pathAndQueryAsByteArray(url);
 
 							final int currentlyInStore = frontier.schemeAuthority2Count.get(urlBuffer, 0, startOfpathAndQuery);
 							if (currentlyInStore < frontier.rc.maxUrlsPerSchemeAuthority) { // We have space for this scheme+authority
@@ -158,7 +203,7 @@ public final class Distributor extends Thread {
 									visitState = new VisitState(frontier, schemeAuthority);
 									visitState.lastRobotsFetch = Long.MAX_VALUE; // This inhibits further enqueueing until robots.txt is fetched.
 									visitState.enqueueRobots();
-									visitState.enqueuePathQuery(BURL.pathAndQueryAsByteArray(url));
+									visitState.enqueuePathQuery(new PathQueryState(visitState, pathQuery));
 									schemeAuthority2VisitState.add(visitState);
 									// Send the visit state to the DNS threads
 									frontier.newVisitStates.add(visitState);
@@ -168,18 +213,19 @@ public final class Distributor extends Thread {
 									if (frontier.virtualizer.count(visitState) > 0) {
 										// Safe: there are URLs on disk, and this fact cannot change concurrently.
 										movedFromSieveToVirtualizer++;
-										frontier.virtualizer.enqueueURL(visitState, url);
+										frontier.virtualizer.enqueuePathQueryState(visitState, new PathQueryState(visitState, pathQuery));
 									}
 									else if (visitState.size() < visitState.pathQueryLimit() && visitState.workbenchEntry != null && visitState.lastExceptionClass == null) {
 										/* Safe: we are enqueueing to a sane (modulo race conditions)
 										 * visit state, which will be necessarily go through the DoneThread later. */
 										visitState.checkRobots(now);
-										visitState.enqueuePathQuery(BURL.pathAndQueryAsByteArray(url));
+										visitState.enqueuePathQuery(new PathQueryState(visitState, pathQuery));
 										movedFromSieveToWorkbench++;
 									}
 									else { // visitState.urlsOnDisk == 0
 										movedFromSieveToVirtualizer++;
-										frontier.virtualizer.enqueueURL(visitState, url);
+										//frontier.virtualizer.enqueueURL( visitState, url );
+										frontier.virtualizer.enqueuePathQueryState(visitState, new PathQueryState(visitState, pathQuery));
 									}
 								}
 							}

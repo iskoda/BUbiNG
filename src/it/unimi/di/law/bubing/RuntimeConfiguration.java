@@ -48,11 +48,13 @@ import com.google.common.primitives.Ints;
 
 
 import it.unimi.di.law.bubing.frontier.ParsingThread;
+import it.unimi.di.law.bubing.frontier.revisit.RevisitScheduler;
 import it.unimi.di.law.bubing.parser.Parser;
 import it.unimi.di.law.bubing.spam.SpamDetector;
 import it.unimi.di.law.bubing.store.Store;
 import it.unimi.di.law.bubing.util.BURL;
 import it.unimi.di.law.bubing.util.Link;
+import it.unimi.di.law.knot.KnotDedup;
 import it.unimi.di.law.warc.filters.Filter;
 import it.unimi.di.law.warc.filters.Filters;
 import it.unimi.di.law.warc.filters.URIResponse;
@@ -122,6 +124,9 @@ public class RuntimeConfiguration {
 
 	/** @see StartupConfiguration#storeFilter */
 	public volatile Filter<URIResponse> storeFilter;
+
+	/** @see StartupConfiguration#revisitFilter */
+	public volatile Filter<URIResponse> revisitFilter;
 
 	/** @see StartupConfiguration#keepAliveTime */
 	public volatile long keepAliveTime;
@@ -261,6 +266,13 @@ public class RuntimeConfiguration {
 	/** The parser, instantiated. Parsers used by {@link ParsingThread} instances are obtained by {@linkplain FlyweightPrototype#copy() copying this parsers}. */
 	public final ArrayList<Parser<?>> parsers;
 
+	/** Use KNOT deduplication. */
+	public KnotDedup knotDedup;
+
+	public float deduplicationThreshold;
+        
+        public RevisitScheduler revisitScheduler;
+
 	/* Global data not depending on a StartupConfiguration. */
 
 	/* Global data not initialised at startup. */
@@ -364,6 +376,7 @@ public class RuntimeConfiguration {
 			parseFilter = startupConfiguration.parseFilter;
 			followFilter = startupConfiguration.followFilter;
 			storeFilter = startupConfiguration.storeFilter;
+			revisitFilter = startupConfiguration.revisitFilter;
 			keepAliveTime = startupConfiguration.keepAliveTime;
 			schemeAuthorityDelay = startupConfiguration.schemeAuthorityDelay;
 			ipDelay = startupConfiguration.ipDelay;
@@ -381,6 +394,15 @@ public class RuntimeConfiguration {
 			dnsCacheMaxSize = startupConfiguration.dnsCacheMaxSize;
 			dnsPositiveTtl = startupConfiguration.dnsPositiveTtl;
 			dnsNegativeTtl = startupConfiguration.dnsNegativeTtl;
+
+			/* KNOT deduplication */
+			if(startupConfiguration.knotDedup) {
+				knotDedup = new KnotDedup(startupConfiguration.knotDedupHashMap, startupConfiguration.knotDedupPort);
+			} else {
+				knotDedup = null;
+			}
+                        deduplicationThreshold = startupConfiguration.deduplicationThreshold;
+			/* ------------------ */
 
 			try {
 				dnsResolver = startupConfiguration.dnsResolverClass.getConstructor().newInstance();
@@ -443,8 +465,8 @@ public class RuntimeConfiguration {
 			acceptAllCertificates = startupConfiguration.acceptAllCertificates;
 			responseBodyMaxByteSize = startupConfiguration.responseBodyMaxByteSize;
 			digestAlgorithm = startupConfiguration.digestAlgorithm;
-			parsers = parsersFromSpecs(startupConfiguration.parserSpec); // Try to build parsers just to see if the specs are correct
-
+			parsers = parsersFromSpecs(startupConfiguration.parserSpec); // Try to build parsers just to see if the specs are correct		
+                        revisitScheduler = ObjectParser.fromSpec(startupConfiguration.revisitScheduler, RevisitScheduler.class, new String[] { "it.unimi.di.law.bubing.frontier.revisit" });
 			// State setup
 
 			paused = startPaused;

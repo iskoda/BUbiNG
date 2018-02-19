@@ -195,6 +195,11 @@ public class StartupConfiguration {
 	@FilterSpecification(type = URIResponse.class)
 	public Filter<URIResponse> storeFilter;
 
+	/** A filter that will be applied to all fetched resources to decide whether to revisit them. */
+	@FilterSpecification(type = URIResponse.class)
+	@OptionalSpecification(value="false")
+	public Filter<URIResponse> revisitFilter;
+        
 	/** If zero, connections are closed at each downloaded resource.
 	 * Otherwise, the time span to download continuously from
 	 * the same site using the same connection. */
@@ -387,7 +392,29 @@ public class StartupConfiguration {
 	@OptionalSpecification(value="2147483647")
 	public int spamDetectionPeriodicity;
 
+	/** Use KNOT deduplication.
+	 */
+	@OptionalSpecification(value="false")
+	public boolean knotDedup;
 
+	/**
+	 */
+	@OptionalSpecification(value="0.8")
+	public float deduplicationThreshold;
+        
+	/** Hashmap of distibution of hash block on servers.
+	 */
+	@OptionalSpecification(value="hashmap.conf")
+	public String knotDedupHashMap;	
+        
+	/** Port of KNOT deduplication server.
+	 */
+	@OptionalSpecification(value="1234")
+	public int knotDedupPort;
+
+        @OptionalSpecification(value="UniformRevisitScheduler()")
+	public String revisitScheduler;
+                
 	/* Checks */
 
 	@SuppressWarnings("unused")
