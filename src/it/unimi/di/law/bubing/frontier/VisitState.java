@@ -123,8 +123,6 @@ public class VisitState implements Delayed, Serializable {
 	/** The spammicity score, if computed; -1, otherwise. */
 	public volatile float spammicity;
 
-        public volatile boolean maxUrls;
-
 	/** Creates a visit state.
 	 *
 	 * @param frontier the frontier for which the state is being created.
@@ -137,7 +135,6 @@ public class VisitState implements Delayed, Serializable {
 		pathQueries = new ObjectArrayFIFOQueue<>();
 		termCount = frontier != null && frontier.rc.spamDetector == null ? null : new Short2ShortOpenHashMap();
 		spammicity = -1;
-                maxUrls = false;
 	}
 
 
@@ -367,13 +364,18 @@ public class VisitState implements Delayed, Serializable {
 		frontier.schemeAuthority2Count.put(schemeAuthority, Integer.MAX_VALUE);
 		// nextFetch = Long.MAX_VALUE;
 		// clear();
-		maxUrls = true;
+		long delete = 0;
+		long enqueue = 0;
 		for (int i = this.size(); i > 0; i--) {
 			PathQueryState pathQuery = dequeue();
 			if (pathQuery.modified != PathQueryState.FIRST_VISIT) {
 				this.enqueuePathQuery(pathQuery);
+				enqueue++;
+			} else {
+				delete++;
 			}
 		}
+ 		LOGGER.info("Shedule purge {} links from {} links: {}", delete, delete+enqueue, this);
 		// TODO(kondrej) add trim (see clear())
 	}
 

@@ -72,6 +72,8 @@ public final class Distributor extends Thread {
 	private static final long HIGH_COST_STATS_INTERVAL = TimeUnit.MINUTES.toMillis(1);
 	/** We check for visit states to be purged at this interval. */
 	private static final long PURGE_CHECK_INTERVAL = TimeUnit.MINUTES.toMillis(15);
+	/** */
+	private static final long REVISIT_CHECK_INTERVAL = TimeUnit.MINUTES.toMillis(1);
 
 	/** A reference to the frontier. */
 	private final Frontier frontier;
@@ -83,10 +85,8 @@ public final class Distributor extends Thread {
 	protected volatile long lastHighCostStat;
 	/** The last time we checked for visit states to be purged. */
 	protected volatile long lastPurgeCheck;
-
-	protected volatile PriorityQueue<RevisitState> revisit;
-	
-	public final Reference2ObjectOpenHashMap<VisitState, RevisitState> visitState2RevisitState;
+	/** */
+	protected volatile long lastRevisitCheck;
 
 	/** Creates a distributor for the given frontier.
 	 *
@@ -95,11 +95,9 @@ public final class Distributor extends Thread {
 	public Distributor(final Frontier frontier) {
 		this.frontier = frontier;
 		this.schemeAuthority2VisitState = new VisitStateSet();
-		this.visitState2RevisitState = new Reference2ObjectOpenHashMap<>();
 		setName(this.getClass().getSimpleName());
 		setPriority(Thread.MAX_PRIORITY);
 		statsThread = new StatsThread(frontier, this);
-		revisit = new PriorityQueue<RevisitState>();
 	}
 
 	@Override
@@ -117,38 +115,11 @@ public final class Distributor extends Thread {
 				final boolean workbenchIsFull = frontier.workbenchIsFull();
 				final boolean frontIsSmall = frontIsSmall();
 
-				PathQueryState pathQueryToRevisit = frontier.revisit.poll();
-				if ( pathQueryToRevisit != null ) {
+				PathQueryState pathQueryToRevisit;
+				for(int i = 100; i != 0 && (pathQueryToRevisit = frontier.revisit.poll()) != null; i--) {
 					round = -1;
 					VisitState visitState = pathQueryToRevisit.visitState;
-					LOGGER.info( "Revisit url {}", pathQueryToRevisit );
-					frontier.virtualizer.enqueuePathQueryState( visitState, pathQueryToRevisit );
-
-					long nextFetch = frontier.virtualizer.nextFetch( visitState );
-					RevisitState revisitState = visitState2RevisitState.get( visitState );
-
-					if ( revisitState == null ) {
-						revisitState = new RevisitState( visitState );
-						visitState2RevisitState.put( visitState, revisitState );
-					}
-
-					if ( revisitState.nextFetch > nextFetch ) {
-						this.revisit.remove( revisitState );
-						revisitState.nextFetch = nextFetch;
-						this.revisit.add( revisitState );
-					}
-				}
-
-				RevisitState readyToRevisit = this.revisit.peek();
-				if ( readyToRevisit != null && readyToRevisit.nextFetch < now ) {
-					round = -1;
-					this.revisit.poll();
-					VisitState visitState = readyToRevisit.visitState;
-					readyToRevisit.nextFetch = Long.MAX_VALUE;
-					LOGGER.info( "Ready to revisit: " + visitState );
-					if ( visitState.isEmpty() && !visitState.acquired ) {
-						frontier.refill.add( visitState );
-					}
+					frontier.virtualizer.enqueuePathQueryState(visitState, pathQueryToRevisit);
 				}
 
 				/* The basic logic of workbench updates is that if the front is large enough, we don't do anything.
@@ -156,14 +127,15 @@ public final class Distributor extends Thread {
 				 * front size is adaptively set by FetchingThread instances when they detect that the
 				 * visit states in the todo list plus workbench.size() is below the current required size
 				 * (i.e., we are counting IPs). */
-                                else if (! workbenchIsFull) {
+				if (! workbenchIsFull) {
 					synchronized(frontier.sieve) {} // We stop here if we are flushing.
 
 					VisitState visitState = frontier.refill.poll();
 					if (visitState != null) { // The priority is given to already started visits
 						round = -1;
-						if (frontier.virtualizer.count(visitState) == 0) LOGGER.info("No URLs on disk during refill: " + visitState);
-						else if ( !frontier.virtualizer.isReadyVisitState( visitState ) ) LOGGER.info( "No ready URLs on disk during refill: " + visitState );
+						if (! visitState.isEmpty()) LOGGER.info("Visit state is not empty: "  + visitState);
+						else if (frontier.virtualizer.count(visitState) == 0) LOGGER.info("No URLs on disk during refill: " + visitState);
+						else if (! frontier.virtualizer.isReadyVisitState(visitState)) LOGGER.info("No ready URLs on disk during refill: " + visitState);
 						else {
 							// Note that this might make temporarily the workbench too big by a little bit.
 							final int pathQueryLimit = visitState.pathQueryLimit();
@@ -210,7 +182,7 @@ public final class Distributor extends Thread {
 									movedFromSieveToWorkbench++;
 								}
 								else {
-									if (frontier.virtualizer.count(visitState) > 0) {
+									if (frontier.virtualizer.isReadyVisitState(visitState)) {
 										// Safe: there are URLs on disk, and this fact cannot change concurrently.
 										movedFromSieveToVirtualizer++;
 										frontier.virtualizer.enqueuePathQueryState(visitState, new PathQueryState(visitState, pathQuery));
@@ -272,6 +244,24 @@ public final class Distributor extends Thread {
 							}
 						}
 					lastPurgeCheck = now;
+				}
+
+				if (now - REVISIT_CHECK_INTERVAL > lastRevisitCheck) {
+					final long time = System.currentTimeMillis();
+					long readyVisitState = 0;
+					long readyToRefill = 0;
+					for(VisitState visitState: schemeAuthority2VisitState.visitStates()) {
+						if (visitState != null && frontier.virtualizer.isReadyVisitState(visitState)) {
+							readyVisitState++;
+							if (visitState.isEmpty() && !visitState.acquired && visitState.lastExceptionClass == null) {
+								readyToRefill++;
+								frontier.refill.add( visitState );
+							}
+						}
+					}
+					final long time2 = System.currentTimeMillis();
+					lastRevisitCheck = now;
+					LOGGER.info("Revisit check spend {} ms, {} visit states ready to visit and {} visit states add to refill queue.", time2 - time, readyVisitState, readyToRefill);
 				}
 
 				if (round != -1) {

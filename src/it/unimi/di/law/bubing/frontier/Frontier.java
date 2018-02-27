@@ -316,7 +316,7 @@ public class Frontier implements JobListener<BubingJob>, AbstractSieve.NewFlowRe
 	 * threads} and emptied by the {@link Distributor}. */
 	protected final LockFreeQueue<VisitState> refill;
 
-	protected final LockFreeQueue<PathQueryState> revisit;
+	public final LockFreeQueue<PathQueryState> revisit;
 
 	/** The current estimation for the size of the front in IP addresses. It is adaptively increased
 	 * when a {@link FetchingThread} has to wait to retrieve a {@link VisitState} from the

@@ -108,33 +108,38 @@ public class WorkbenchVirtualizer implements Closeable {
 	 * @return the number of actually dequeued path+queries.
 	 * @throws IOException 
 	 */
-	public int dequeuePathQueriesState( final VisitState visitState, final int maxUrls ) throws IOException {
-		if ( maxUrls == 0 ) return 0;
+	public int dequeuePathQueriesState(final VisitState visitState, final int maxUrls) throws IOException {
+		if (maxUrls == 0) return 0;
 		int dequeued = 0;
 		long nextFetch = Long.MAX_VALUE;
 		long now = System.currentTimeMillis();
 		PriorityQueue<PathQueryState> pathQueries = new PriorityQueue<>();
-
-		for( int i = (int)byteArrayDiskQueues.count( visitState ); i-- != 0; ) {
-                	byte[] bytes = byteArrayDiskQueues.dequeue( visitState );
-			final PathQueryState pathQueryState = PathQueryState.bytesToPathQueryState( visitState, bytes );
-			pathQueries.add( pathQueryState );
+		for(int i = (int)byteArrayDiskQueues.count(visitState); i-- != 0;) {
+			byte[] bytes = byteArrayDiskQueues.dequeue(visitState);
+			final PathQueryState pathQueryState = PathQueryState.bytesToPathQueryState(visitState, bytes);
+			final int currentlyInStore = frontier.schemeAuthority2Count.get(visitState.schemeAuthority);
+			if (currentlyInStore < frontier.rc.maxUrlsPerSchemeAuthority || pathQueryState.modified != PathQueryState.FIRST_VISIT) {
+				pathQueries.add(pathQueryState);   
+			}
 		}
 
-		for( int i = pathQueries.size(); i-- != 0; ) {
+		for(int i = pathQueries.size(); i-- != 0;) {
 			final PathQueryState pathQuery = pathQueries.poll();
-			if ( pathQuery.nextFetch < now && dequeued < maxUrls ) {
-				visitState.enqueuePathQuery( pathQuery );
+			if (pathQuery.nextFetch < now && dequeued < maxUrls) {
+				visitState.enqueuePathQuery(pathQuery);
 				dequeued++;
 			} else {
-				this.enqueuePathQueryState( visitState, pathQuery );
-				if ( pathQuery.nextFetch < nextFetch ) {
+				this.enqueuePathQueryState(visitState, pathQuery);
+				if (pathQuery.nextFetch < nextFetch) {
 					nextFetch = pathQuery.nextFetch;
 				}
 			}
 		}
-
-		visitState2nextFetch.put( visitState, nextFetch );
+		final int currentlyInStore = frontier.schemeAuthority2Count.get(visitState.schemeAuthority);
+		if (!(currentlyInStore < frontier.rc.maxUrlsPerSchemeAuthority)) {
+			LOGGER.info("After shedule purge dequeue {} links from {}", dequeued, visitState);
+		}
+		visitState2nextFetch.put(visitState, nextFetch);
 
 		return dequeued;
 	}
@@ -184,7 +189,6 @@ public class WorkbenchVirtualizer implements Closeable {
 	 * @throws IOException 
 	 */
 	public void enqueuePathQueryState(VisitState visitState, final PathQueryState pathQuery) throws IOException {
-
 		byte[] serialized = PathQueryState.pathQueryStateToBytes(pathQuery);
 		byteArrayDiskQueues.enqueue(visitState, serialized, 0, serialized.length);
 		if (visitState2nextFetch.get(visitState) == null || visitState2nextFetch.get(visitState) > pathQuery.nextFetch) {
@@ -193,6 +197,11 @@ public class WorkbenchVirtualizer implements Closeable {
 	}
 
 	public boolean isReadyVisitState(VisitState visitState) {
+		final Long nextFetch;
+		synchronized(visitState2nextFetch) {
+			nextFetch = visitState2nextFetch.get(visitState);
+		}
+		if (nextFetch == null) return false;
 		return byteArrayDiskQueues.count(visitState) > 0 && visitState2nextFetch.get(visitState) < System.currentTimeMillis();
 	}
         

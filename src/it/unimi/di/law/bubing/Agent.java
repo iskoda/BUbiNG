@@ -631,6 +631,11 @@ public class Agent extends JGroupsJobManager<BubingJob> {
 		return frontier.todo.size();
 	}
 
+	@ManagedAttribute @Description("Number of PathQueryState instances in the revisit queue")
+	public long getRevisitSize() {
+		return frontier.revisit.size();
+	}
+        
 	@ManagedAttribute @Description("Number of FetchingThread instances downloading data")
 	public int getActiveFecthingThreads() {
 		return  (int)(frontier.rc.fetchingThreads - frontier.results.size());
