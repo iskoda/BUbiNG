@@ -397,7 +397,13 @@ public class RuntimeConfiguration {
 
 			/* KNOT deduplication */
 			if(startupConfiguration.knotDedup) {
-				knotDedup = new KnotDedup(startupConfiguration.knotDedupHashMap, startupConfiguration.knotDedupPort);
+				try {
+					knotDedup = new KnotDedup(startupConfiguration.knotDedupHashMap, startupConfiguration.knotDedupPort);
+					knotDedup.connect();
+					knotDedup.close();
+				} catch (Exception e) {
+					throw new ConfigurationException(e);
+				}
 			} else {
 				knotDedup = null;
 			}

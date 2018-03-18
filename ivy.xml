@@ -24,6 +24,8 @@
 		     in case the resolution fails with  "configuration not found in ...: 'javadoc'.")
 		 -->
 
+ 		<dependency org="net.openhft" name="zero-allocation-hashing" rev="latest.release"/>
+
 		<dependency org="it.unimi.dsi" name="dsiutils" rev="latest.release"/>
 		<dependency org="it.unimi.di.law" name="jai4j" rev="latest.release"/>
 

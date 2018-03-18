@@ -7,11 +7,18 @@ import java.math.BigInteger;
 
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
+import it.unimi.di.law.bubing.frontier.Frontier;
+import java.nio.ByteBuffer;
+
+import net.openhft.hashing.LongHashFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Deduplication worker.
  * @author karel
  */
 public class KnotDedup {
+	private static final Logger LOGGER = LoggerFactory.getLogger(KnotDedup.class);
 
 	static final int LENGTH_LOW  = 70;
 	static final int LENGTH_HIGH = 200;
@@ -84,29 +91,39 @@ public class KnotDedup {
 	public float duplicityRate() throws IOException {
 		float newParagraphs = 0.f;
 		float duplicitParagraphs = 0.f;
-                
-                if( paragraphs == null || paragraphs.isEmpty() ) {
-                    return Float.NaN;
-                }
-                
-		for( CharSequence paragraph : paragraphs) {
-			if( paragraph.length() > LENGTH_LOW ) {
-				final Hasher hasher = Hashing.sipHash24().newHasher();
-				hasher.putBytes( paragraph.toString().getBytes() );
-				final byte[] hash = hasher.hash().asBytes();
+		long value;
+		byte[] hash;
 
+                if( paragraphs == null || paragraphs.isEmpty() ) {
+			return Float.NaN;
+		}
+
+		String document = String.join(" ", paragraphs);
+		
+		value = LongHashFunction.xx().hashBytes(document.getBytes());
+		hash = ByteBuffer.allocate(8).putLong(value).array();
+
+		if(! addHash(hash)) {
+			return 1.f;
+		}
+
+		for(CharSequence paragraph : paragraphs) {
+			if(paragraph.length() > LENGTH_LOW) {
+                                value = LongHashFunction.xx().hashBytes(paragraph.toString().getBytes());
+				hash = ByteBuffer.allocate(8).putLong(value).array();
+                                
 				float w = paragraph.length() > LENGTH_HIGH ? 1.f : 0.5f;
 
-				if( addHash( hash ) ) newParagraphs += w;
+				if(addHash(hash)) newParagraphs += w;
 				else duplicitParagraphs += w;                               
 			}
 		}
-                
-                if( duplicitParagraphs == 0.f && newParagraphs == 0.f ) {
-                    return Float.NaN;
-                }
-                
-		return duplicitParagraphs / ( duplicitParagraphs + newParagraphs );
+
+		if(duplicitParagraphs == 0.f && newParagraphs == 0.f) {
+			return 0.f;
+		}
+
+		return duplicitParagraphs / (duplicitParagraphs + newParagraphs);
 	}
 
 	/** Connection to servers.
@@ -118,7 +135,15 @@ public class KnotDedup {
 		Map<String, KnotDedupClient> tmpClient = new HashMap<>();
 
 		for (String hostname : servers) {
-			tmpClient.put( hostname, new KnotDedupClient( hostname, port ) );
+			try {
+				tmpClient.put(hostname, new KnotDedupClient(hostname, port));
+			} catch (UnknownHostException e) {
+				LOGGER.error("Unknown host ", hostname);
+				throw e;
+			} catch (Exception e) {
+				LOGGER.error("Unknown error ", e);
+				throw e;
+			}
 		}
 
 		blockToServer = new KnotDedupClient[blockCount.intValue()];

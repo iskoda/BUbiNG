@@ -253,7 +253,7 @@ public final class Distributor extends Thread {
 					for(VisitState visitState: schemeAuthority2VisitState.visitStates()) {
 						if (visitState != null && frontier.virtualizer.isReadyVisitState(visitState)) {
 							readyVisitState++;
-							if (visitState.isEmpty() && !visitState.acquired && visitState.lastExceptionClass == null) {
+							if (visitState.isEmpty() && !visitState.acquired) {
 								readyToRefill++;
 								frontier.refill.add( visitState );
 							}

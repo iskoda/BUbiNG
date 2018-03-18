@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.regex.Pattern;
 
 /** */
 public final class KnotDedupTextProcessor implements TextProcessor<List<CharSequence>> {
@@ -30,7 +29,6 @@ public final class KnotDedupTextProcessor implements TextProcessor<List<CharSequ
 	};
                 
 	KnotDedupTextProcessor.Paragraphs paragraphs;
-	static final private Pattern NON_WORD = Pattern.compile( "\\W+", Pattern.UNICODE_CHARACTER_CLASS );
         
 	public KnotDedupTextProcessor() { }	
 	
@@ -67,6 +65,20 @@ public final class KnotDedupTextProcessor implements TextProcessor<List<CharSequ
 	}
         
 	private CharSequence process( CharSequence csq ) {
-		return NON_WORD.matcher( csq ).replaceAll( " " ).trim().toLowerCase();
+		boolean lastAppendedWasSpace = true;
+		StringBuilder buffer = new StringBuilder();
+		for(int i = 0; i < csq.length(); i++) {
+			char c = csq.charAt(i);
+			if (Character.isWhitespace(c) || !Character.isLetter(c)) {
+				if (!lastAppendedWasSpace) {
+					buffer.append(' ');
+					lastAppendedWasSpace = true;
+				}
+			} else {
+				buffer.append(Character.toLowerCase(c));
+				lastAppendedWasSpace = false;
+			}
+		}
+		return buffer.toString().trim();
 	}
 }
