@@ -423,12 +423,12 @@ public class ParsingThread extends Thread {
 						}
 						dedupWorker.setParagraphs( null );
 						final long time2 = System.nanoTime();
-						LOGGER.info( "Deduplicate time {}", (time2 - time ) );
-						LOGGER.info( "Duplicity rate of {} is {} isNotDuplicate={}", url, duplicityRate, Boolean.valueOf( isNotDuplicate ) );
+						LOGGER.debug( "Deduplicate time {}", (time2 - time ) );
+						LOGGER.debug( "Duplicity rate of {} is {} isNotDuplicate={}", url, duplicityRate, Boolean.valueOf( isNotDuplicate ) );
 					}
 
 					if (LOGGER.isTraceEnabled()) LOGGER.trace("Decided that for {} isNotDuplicate={}", url, Boolean.valueOf(isNotDuplicate));
-					if (isNotDuplicate) for(final URI u: linkReceiver) frontierLinkReceiver.enqueue(u);
+					if (isNotDuplicate || dedupWorker != null) for(final URI u: linkReceiver) frontierLinkReceiver.enqueue(u);
 					else fetchData.isDuplicate(true);
 
 					final long modifiedTime = firstPath.modified;

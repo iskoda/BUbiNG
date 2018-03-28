@@ -5,9 +5,6 @@ import java.net.*;
 import java.util.*;
 import java.math.BigInteger;
 
-import com.google.common.hash.Hasher;
-import com.google.common.hash.Hashing;
-import it.unimi.di.law.bubing.frontier.Frontier;
 import java.nio.ByteBuffer;
 
 import net.openhft.hashing.LongHashFunction;
@@ -20,7 +17,7 @@ import org.slf4j.LoggerFactory;
 public class KnotDedup {
 	private static final Logger LOGGER = LoggerFactory.getLogger(KnotDedup.class);
 
-	static final int LENGTH_LOW  = 70;
+	static final int LENGTH_LOW  = 50;
 	static final int LENGTH_HIGH = 200;
 
 	Set<String> servers;
@@ -94,25 +91,25 @@ public class KnotDedup {
 		long value;
 		byte[] hash;
 
-                if( paragraphs == null || paragraphs.isEmpty() ) {
+		if( paragraphs == null || paragraphs.isEmpty() ) {
 			return Float.NaN;
 		}
+                
+                if(paragraphs.size() > 1) {
+			String document = String.join(" ", paragraphs);
 
-		String document = String.join(" ", paragraphs);
-		
-		value = LongHashFunction.xx().hashBytes(document.getBytes());
-		hash = ByteBuffer.allocate(8).putLong(value).array();
+			value = LongHashFunction.xx().hashBytes(document.getBytes());
+			hash = ByteBuffer.allocate(8).putLong(value).array();
 
-		if(! addHash(hash)) {
-			return 1.f;
+			if(! addHash(hash)) return 1.f;
 		}
 
 		for(CharSequence paragraph : paragraphs) {
 			if(paragraph.length() > LENGTH_LOW) {
-                                value = LongHashFunction.xx().hashBytes(paragraph.toString().getBytes());
+				value = LongHashFunction.xx().hashBytes(paragraph.toString().getBytes());
 				hash = ByteBuffer.allocate(8).putLong(value).array();
-                                
-				float w = paragraph.length() > LENGTH_HIGH ? 1.f : 0.5f;
+ 
+				float w = paragraph.length();
 
 				if(addHash(hash)) newParagraphs += w;
 				else duplicitParagraphs += w;                               
