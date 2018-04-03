@@ -56,7 +56,10 @@ public final class DoneThread extends Thread {
 
 				do {
 					// We do not schedule for refill purged visit states
-					if (visitState.nextFetch != Long.MAX_VALUE && frontier.virtualizer.isReadyVisitState(visitState) && visitState.isEmpty()) frontier.refill.add(visitState);
+					if (visitState.nextFetch != Long.MAX_VALUE && frontier.virtualizer.isReadyVisitState(visitState) && visitState.isEmpty() && ! visitState.refill) {
+						visitState.refill = true;
+						frontier.refill.add(visitState);
+                                        }
 					frontier.workbench.release(visitState);
 				} while((visitState = frontier.done.poll()) != null);
 			}

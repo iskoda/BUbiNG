@@ -112,6 +112,8 @@ public class VisitState implements Delayed, Serializable {
 	public volatile int retries;
 	/** Whether this visit state is currently {@linkplain Workbench#acquire() acquired}. */
 	protected volatile transient boolean acquired;
+        /** Whether this visit state is in refill queue. */
+	protected volatile transient boolean refill;
 	/** A reference to the frontier. */
 	public transient Frontier frontier;
 	/** The path+queries that must be visited for this visit state. */
@@ -135,6 +137,7 @@ public class VisitState implements Delayed, Serializable {
 		pathQueries = new ObjectArrayFIFOQueue<>();
 		termCount = frontier != null && frontier.rc.spamDetector == null ? null : new Short2ShortOpenHashMap();
 		spammicity = -1;
+                refill = false;
 	}
 
 
@@ -375,8 +378,8 @@ public class VisitState implements Delayed, Serializable {
 				delete++;
 			}
 		}
- 		LOGGER.info("Shedule purge {} links from {} links: {}", delete, delete+enqueue, this);
-		// TODO(kondrej) add trim (see clear())
+ 		LOGGER.debug("Shedule purge {} links from {} links: {}", delete, delete+enqueue, this);
+		pathQueries.trim();
 	}
 
 	/** Checks whether the current robots information has expired and, if necessary, schedules a new <code>robots.txt</code> download.

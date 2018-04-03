@@ -56,7 +56,7 @@ public final class KnotDedupTextProcessor implements TextProcessor<List<CharSequ
 
 	@Override
 	public List<CharSequence> result() {
-		return paragraphs;
+                return paragraphs;
 	}
 
 	@Override
@@ -64,7 +64,7 @@ public final class KnotDedupTextProcessor implements TextProcessor<List<CharSequ
 		return new KnotDedupTextProcessor( );
 	}
         
-	private CharSequence process( CharSequence csq ) {
+	private CharSequence process( CharSequence csq ) throws IOException {
 		boolean lastAppendedWasSpace = true;
 		StringBuilder buffer = new StringBuilder();
 		for(int i = 0; i < csq.length(); i++) {

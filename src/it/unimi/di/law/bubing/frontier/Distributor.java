@@ -65,7 +65,7 @@ public final class Distributor extends Thread {
 	private static final Logger LOGGER = LoggerFactory.getLogger(Distributor.class);
 	/** We purge {@linkplain VisitState visit states} from {@link #schemeAuthority2VisitState} when
 	 * this amount of time has passed (approximately) since the last fetch. */
-	private static final long PURGE_DELAY = TimeUnit.DAYS.toMillis(1);
+	private static final long PURGE_DELAY = TimeUnit.DAYS.toMillis(365);
 	/** We prints low-cost stats at this interval. */
 	private static final long LOW_COST_STATS_INTERVAL = TimeUnit.SECONDS.toMillis(10);
 	/** We prints high-cost stats at this interval. */
@@ -144,6 +144,7 @@ public final class Distributor extends Thread {
 							final int dequeuedURLs = frontier.virtualizer.dequeuePathQueriesState(visitState, pathQueryLimit);
 							movedFromQueues += dequeuedURLs;
 						}
+                                                visitState.refill= false;
 					}
 					else if (frontIsSmall){
 						// It is necessary to enrich the workbench picking up URLs from the sieve
@@ -228,7 +229,7 @@ public final class Distributor extends Thread {
 					final Thread thread = new Thread(statsThread, statsThread.getClass().getSimpleName());
 					thread.start();
 				}
-
+				
 				if (now - PURGE_CHECK_INTERVAL > lastPurgeCheck) {
 					for(VisitState visitState: schemeAuthority2VisitState.visitStates())
 						if (visitState != null) {
@@ -236,7 +237,7 @@ public final class Distributor extends Thread {
 							 * URL but haven't seen a URL for a PURGE_DELAY interval. Note that in the second case
 							 * we do not modify schemeAuthority2Count, as we might encounter some more URLs for the
 							 * same visit state later, in which case we will create it again. */
-							if (visitState.nextFetch == Long.MAX_VALUE || visitState.nextFetch != 0 && visitState.nextFetch < now - PURGE_DELAY && visitState.isEmpty() && ! visitState.acquired && visitState.lastExceptionClass == null) {
+							if (visitState.nextFetch == Long.MAX_VALUE || visitState.nextFetch != 0 && visitState.nextFetch < now - PURGE_DELAY && visitState.isEmpty() && ! visitState.acquired && visitState.lastExceptionClass == null && frontier.virtualizer.count(visitState) > 0) {
 								LOGGER.info((visitState.nextFetch == Long.MAX_VALUE ? "Purging " : "Purging by delay ") + visitState);
 								// This will modify the backing array on which we are enumerating, but it won't be a serious problem.
 								frontier.virtualizer.remove(visitState);
@@ -253,7 +254,8 @@ public final class Distributor extends Thread {
 					for(VisitState visitState: schemeAuthority2VisitState.visitStates()) {
 						if (visitState != null && frontier.virtualizer.isReadyVisitState(visitState)) {
 							readyVisitState++;
-							if (visitState.isEmpty() && !visitState.acquired) {
+							if (visitState.isEmpty() && !visitState.acquired && !visitState.refill) {
+								visitState.refill = true;
 								readyToRefill++;
 								frontier.refill.add( visitState );
 							}
