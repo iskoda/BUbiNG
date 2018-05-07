@@ -1,4 +1,4 @@
-package it.unimi.di.law.knot;
+package cz.vutbr.fit.knot;
 
 import java.io.*;
 import java.net.*;
@@ -12,15 +12,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Deduplication worker.
- * @author karel
+ * @author xondre09
  */
 public class KnotDedup {
 	private static final Logger LOGGER = LoggerFactory.getLogger(KnotDedup.class);
-
+	/** The paragraph must be longer than 50 characters. */
 	static final int LENGTH_LOW  = 50;
-	static final int LENGTH_HIGH = 200;
-
+	/** The set of database servers hosts. */
 	Set<String> servers;
+        /** The port on which the servers are listening. */
 	int port;
 
 	Map<Integer,String> distibution;
@@ -29,14 +29,30 @@ public class KnotDedup {
 
 	List<CharSequence> paragraphs;
 
+	/** Create the worker.
+	 * 
+	 * @param hashMap the hash map.
+	 * @throws FileNotFoundException the hash map not found.
+         */
 	public KnotDedup(String hashMap) throws FileNotFoundException  {
 		this( hashMap, 1234 );
 	}
 
+	/** Create the worker.
+	 * 
+	 * @param hashMap the hash map.
+	 * @param port the port of database server.
+	 * @throws FileNotFoundException the hash map not found.
+	 */
 	public KnotDedup(String hashMap, int port) throws FileNotFoundException {
 		this( loadHashMap( hashMap ), port );
 	}
 
+	/** Create he worker.
+	 * 
+	 * @param distibution the map of blocks of hash to hosts.
+	 * @param port the port of database server.
+	 */
 	protected KnotDedup(Map<Integer,String> distibution, int port) {
 		this.blockCount = BigInteger.ZERO;
 		this.distibution = distibution;
@@ -94,8 +110,9 @@ public class KnotDedup {
 		if( paragraphs == null || paragraphs.isEmpty() ) {
 			return Float.NaN;
 		}
-                
+		
                 if(paragraphs.size() > 1) {
+			// is the entire contents duplicate?
 			String document = String.join(" ", paragraphs);
 
 			value = LongHashFunction.xx().hashBytes(document.getBytes());

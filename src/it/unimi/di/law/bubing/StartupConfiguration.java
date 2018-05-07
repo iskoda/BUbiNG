@@ -397,10 +397,10 @@ public class StartupConfiguration {
 	@OptionalSpecification(value="false")
 	public boolean knotDedup;
 
-	/**
+	/** Threshold of page duplicity.
 	 */
 	@OptionalSpecification(value="0.9")
-	public float deduplicationThreshold;
+	public float duplicityThreshold;
         
 	/** Hashmap of distibution of hash block on servers.
 	 */
@@ -412,9 +412,16 @@ public class StartupConfiguration {
 	@OptionalSpecification(value="1234")
 	public int knotDedupPort;
 
+	/** Re-visit strategy.
+	 */
         @OptionalSpecification(value="UniformRevisitScheduler()")
 	public String revisitScheduler;
-                
+
+	/** Period to check if the link should be re-visited.
+	 */
+        @OptionalSpecification(value="15m")
+        @TimeSpecification
+	public long revisitCheckPeriodicity;   
 	/* Checks */
 
 	@SuppressWarnings("unused")

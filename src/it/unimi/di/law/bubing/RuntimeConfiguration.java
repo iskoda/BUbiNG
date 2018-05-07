@@ -44,6 +44,8 @@ import com.google.common.primitives.Ints;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * FILE CHANGED BY KAREL ONDŘEJ (2018-04-04)
  */
 
 
@@ -54,7 +56,7 @@ import it.unimi.di.law.bubing.spam.SpamDetector;
 import it.unimi.di.law.bubing.store.Store;
 import it.unimi.di.law.bubing.util.BURL;
 import it.unimi.di.law.bubing.util.Link;
-import it.unimi.di.law.knot.KnotDedup;
+import cz.vutbr.fit.knot.KnotDedup;
 import it.unimi.di.law.warc.filters.Filter;
 import it.unimi.di.law.warc.filters.Filters;
 import it.unimi.di.law.warc.filters.URIResponse;
@@ -269,9 +271,11 @@ public class RuntimeConfiguration {
 	/** Use KNOT deduplication. */
 	public KnotDedup knotDedup;
 
-	public float deduplicationThreshold;
+	public float duplicityThreshold;
         
-        public RevisitScheduler revisitScheduler;
+	public RevisitScheduler revisitScheduler;
+
+  	public long revisitCheckPeriodicity;
 
 	/* Global data not depending on a StartupConfiguration. */
 
@@ -407,9 +411,10 @@ public class RuntimeConfiguration {
 			} else {
 				knotDedup = null;
 			}
-                        deduplicationThreshold = startupConfiguration.deduplicationThreshold;
+                        duplicityThreshold = startupConfiguration.duplicityThreshold;
 			/* ------------------ */
 
+			revisitCheckPeriodicity = startupConfiguration.revisitCheckPeriodicity;
 			try {
 				dnsResolver = startupConfiguration.dnsResolverClass.getConstructor().newInstance();
 			}

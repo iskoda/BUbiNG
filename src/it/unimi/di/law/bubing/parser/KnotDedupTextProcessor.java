@@ -23,7 +23,8 @@ import java.net.URI;
 import java.util.List;
 import java.util.ArrayList;
 
-/** */
+/** An implementation of a {@link Parser.TextProcessor} that normalize paragraphs.
+ */
 public final class KnotDedupTextProcessor implements TextProcessor<List<CharSequence>> {
 	public final static class Paragraphs extends ArrayList<CharSequence> {
 	};
@@ -63,7 +64,8 @@ public final class KnotDedupTextProcessor implements TextProcessor<List<CharSequ
 	public TextProcessor<List<CharSequence>> copy() {
 		return new KnotDedupTextProcessor( );
 	}
-        
+
+	/* Normalize paragraphs. */
 	private CharSequence process( CharSequence csq ) throws IOException {
 		boolean lastAppendedWasSpace = true;
 		StringBuilder buffer = new StringBuilder();

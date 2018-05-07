@@ -14,15 +14,13 @@ package it.unimi.di.law.bubing.frontier;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * FILE CHANGED BY KAREL ONDŘEJ (2018-04-04)
  */
 
-
-import it.unimi.di.law.bubing.frontier.revisit.RevisitState;
 import it.unimi.di.law.bubing.util.BURL;
 import it.unimi.dsi.Util;
 import it.unimi.dsi.fastutil.bytes.ByteArrayList;
-import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
-import java.util.PriorityQueue;
 
 import java.util.concurrent.TimeUnit;
 
@@ -72,8 +70,8 @@ public final class Distributor extends Thread {
 	private static final long HIGH_COST_STATS_INTERVAL = TimeUnit.MINUTES.toMillis(1);
 	/** We check for visit states to be purged at this interval. */
 	private static final long PURGE_CHECK_INTERVAL = TimeUnit.MINUTES.toMillis(15);
-	/** */
-	private static final long REVISIT_CHECK_INTERVAL = TimeUnit.MINUTES.toMillis(1);
+	/** We check for visit states with ready path+query to fetch. */
+	private final long REVISIT_CHECK_INTERVAL;
 
 	/** A reference to the frontier. */
 	private final Frontier frontier;
@@ -98,6 +96,7 @@ public final class Distributor extends Thread {
 		setName(this.getClass().getSimpleName());
 		setPriority(Thread.MAX_PRIORITY);
 		statsThread = new StatsThread(frontier, this);
+                REVISIT_CHECK_INTERVAL=frontier.rc.revisitCheckPeriodicity;
 	}
 
 	@Override
@@ -252,8 +251,10 @@ public final class Distributor extends Thread {
 					long readyVisitState = 0;
 					long readyToRefill = 0;
 					for(VisitState visitState: schemeAuthority2VisitState.visitStates()) {
+						// visit state ready to fetch
 						if (visitState != null && frontier.virtualizer.isReadyVisitState(visitState)) {
 							readyVisitState++;
+							// visit state is empty
 							if (visitState.isEmpty() && !visitState.acquired && !visitState.refill) {
 								visitState.refill = true;
 								readyToRefill++;

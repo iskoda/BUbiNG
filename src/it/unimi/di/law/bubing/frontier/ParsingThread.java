@@ -26,6 +26,8 @@ import org.slf4j.LoggerFactory;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * FILE CHANGED BY KAREL ONDŘEJ (2018-04-04)
  */
 
 import it.unimi.di.law.bubing.RuntimeConfiguration;
@@ -40,7 +42,7 @@ import it.unimi.di.law.bubing.util.BURL;
 import it.unimi.di.law.bubing.util.FetchData;
 import it.unimi.di.law.bubing.util.Link;
 import it.unimi.di.law.bubing.util.URLRespectsRobots;
-import it.unimi.di.law.knot.KnotDedup;
+import cz.vutbr.fit.knot.KnotDedup;
 import it.unimi.di.law.warc.filters.Filter;
 import it.unimi.di.law.warc.records.HttpResponseWarcRecord;
 import it.unimi.dsi.Util;
@@ -249,14 +251,13 @@ public class ParsingThread extends Thread {
 	@Override
 	public void run() {
 		KnotDedup dedupWorker = null;
-              
+		// init worker for duplicity detection
 		try {
 			if(frontier.rc.knotDedup != null) {
 				dedupWorker = frontier.rc.knotDedup.copy();
 				dedupWorker.connect();
 			}   
 		} catch (IOException ex) {
-   
 		}
             
 		try {
@@ -324,7 +325,7 @@ public class ParsingThread extends Thread {
 						continue;
 					}
 					else {
-						firstPath = visitState.dequeue();      // TODO(kondrej) nextFetch
+						firstPath = visitState.dequeue();
 						if ( LOGGER.isTraceEnabled() ) LOGGER.trace( "Dequeuing " + it.unimi.di.law.bubing.util.Util.toString( firstPath.pathQuery ) + " after fetching " + fetchData.uri() + "; " + ( visitState.isEmpty() ? "visit state is now empty " : " first path now is " + it.unimi.di.law.bubing.util.Util.toString( visitState.firstPath().pathQuery ) ) );
 						visitState.nextFetch = fetchData.endTime + rc.schemeAuthorityDelay; // Regular delay
 					}
@@ -416,9 +417,10 @@ public class ParsingThread extends Thread {
 
 					boolean isNotDuplicate = streamLength == 0 || frontier.digests.addHash(digest); // Essentially thread-safe; we do not consider zero-content pages as duplicates
 					if ( dedupWorker != null && isNotDuplicate ) {
+						// Duplicity detection
 						final long time = System.nanoTime();
 						float duplicityRate = dedupWorker.duplicityRate();
-						if( !Float.isNaN( duplicityRate ) && duplicityRate > rc.deduplicationThreshold ) {
+						if( !Float.isNaN( duplicityRate ) && duplicityRate > rc.duplicityThreshold ) {
 							isNotDuplicate = false;
 						}
 						dedupWorker.setParagraphs( null );

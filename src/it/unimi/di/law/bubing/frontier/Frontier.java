@@ -14,6 +14,8 @@ package it.unimi.di.law.bubing.frontier;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * FILE CHANGED BY KAREL ONDŘEJ (2018-04-04)
  */
 
 import it.unimi.di.law.bubing.Agent;
