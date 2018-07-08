@@ -44,6 +44,8 @@ import com.martiansoftware.jsap.UnflaggedOption;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * EDIT: 2018-07-08 Karel ONDŘEJ - Add method saveURLs
  */
 
 
@@ -64,6 +66,9 @@ import it.unimi.dsi.jai4j.RemoteJobManager;
 import it.unimi.dsi.jai4j.dropping.DiscardMessagesStrategy;
 import it.unimi.dsi.jai4j.dropping.TimedDroppingThreadFactory;
 import it.unimi.dsi.jai4j.jgroups.JGroupsJobManager;
+import java.io.File;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 
 //RELEASE-STATUS: DIST
 
@@ -243,6 +248,30 @@ public class Agent extends JGroupsJobManager<BubingJob> {
 	@ManagedOperation @Description("Get manager for this URL")
 	public String getManager(@org.softee.management.annotation.Parameter("url") @Description("A URL") final String url) throws NoSuchJobManagerException {
 		return assignmentStrategy.manager(new BubingJob(ByteArrayList.wrap(BURL.toByteArray(BURL.parse(url))))).toString();
+	}
+
+	@ManagedOperation @Description("Pause this agent and save URLs to file.")
+	public synchronized void saveURLs() throws FileNotFoundException, UnsupportedEncodingException, IOException, InterruptedException {
+		pause();
+		LOGGER.info("Pause and start saving URLs to file..." );
+		frontier.saveURLs(new File(rc.rootDir, "URLsInQueues.csv"));
+
+		try (PrintWriter writer = new PrintWriter(new File(rc.rootDir, "readyURLs.csv"), "UTF-8")) {
+			synchronized(frontier.sieve) {}
+			frontier.sieve.flush();
+                
+			for (long i=frontier.readyURLs.size64(); i!=0; i--) {
+				frontier.readyURLs.dequeue();
+				byte[] url = frontier.readyURLs.buffer().elements();
+				byte[] schemeAndAuthority = BURL.schemeAndAuthorityAsByteArray(url);
+				byte[] pathAndQuery = BURL.pathAndQueryAsByteArray(url);
+				writer.println(BURL.fromNormalizedSchemeAuthorityAndPathQuery(schemeAndAuthority, pathAndQuery) + "\t" +
+					BURL.hostFromSchemeAndAuthority(schemeAndAuthority));
+				frontier.readyURLs.enqueue(url);
+			}
+		}
+		LOGGER.info("... end saving URLs to file and resume.");
+		resume();
 	}
 
 	/* Properties, the same as RuntimeConfiguration: final fields in RuntimeConfiguration are not reported since they can be seen in the file .properties;

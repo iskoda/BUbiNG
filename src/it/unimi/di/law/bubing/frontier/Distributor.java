@@ -14,12 +14,15 @@ package it.unimi.di.law.bubing.frontier;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * EDIT: 2018-07-08 Karel ONDŘEJ - Add stats
  */
 
 
 import it.unimi.di.law.bubing.util.BURL;
 import it.unimi.dsi.Util;
 import it.unimi.dsi.fastutil.bytes.ByteArrayList;
+import it.unimi.dsi.stat.SummaryStats;
 
 import java.util.concurrent.TimeUnit;
 
@@ -201,6 +204,41 @@ public final class Distributor extends Thread {
 					noReadyURLsSleepTime = 0;
 					statsThread.emit();
 					lastLowCostStat = now;
+
+					SummaryStats entrySummaryStats = frontier.getStatsThread().entrySummaryStats;
+					long time = System.currentTimeMillis();
+					LOGGER.info("Agent stats: "+
+						time+";"+
+						frontier.workbench.approximatedSize()+";"+                  // IPOnWorkbench
+						frontier.pathQueriesInQueues.get()+";"+                     // URLsInQueues
+						100.0 * frontier.weightOfpathQueriesInQueues.get() / frontier.rc.workbenchMaxByteSize+";"+ // URLsInQueuesPercentage
+						frontier.getStatsThread().brokenPathQueryCount+";"+         // broken
+						frontier.brokenVisitStates.get()+";"+                       // brokenVisitStates
+						frontier.getStatsThread().brokenVisitStatesOnWorkbench+";"+ // broeknVisitStatesOnWorkbench
+						frontier.transferredBytes.get()+";"+                        // bytes
+						100.0 * frontier.duplicates.get() / (1 + frontier.archetypes())+";"+ // duplicatesPercentage
+						frontier.duplicates.get()+";"+                              // duplicates
+						(entrySummaryStats != null ? entrySummaryStats.mean() : "0.0")+";"+ // entryAverage
+						(entrySummaryStats != null ? entrySummaryStats.max() : "0.0")+";"+ // entryMax
+						(entrySummaryStats != null ? entrySummaryStats.min() : "0.0")+";"+ // entryMin
+						(entrySummaryStats != null ? entrySummaryStats.variance() : "0.0")+";"+ // entryVariance
+						(int)frontier.results.size()+";"+                           // readyToParse
+						frontier.readyURLs.size64()+";"+                            // readyURLs
+						frontier.numberOfReceivedURLs.get()+";"+                    // receivedURLs
+						frontier.fetchedResources.get() + frontier.fetchedRobots.get()+";"+ // requests
+						frontier.requiredFrontSize.get()+";"+                       // requiredFrontSize
+						frontier.getStatsThread().resolvedVisitStates+";"+          // resolvedVisitStates
+						frontier.fetchedResources.get()+";"+                        // resources
+						frontier.archetypes() + frontier.duplicates.get()+";"+      // storeSize
+						frontier.todo.size()+";"+                                   // toDoSize
+						frontier.unknownHosts.size()+";"+                           // unknownHosts
+						frontier.getStatsThread().unresolved+";"+                   // unresolved
+						frontier.getStatsThread().getVisitStates()+";"+             // visitStates
+						frontier.getStatsThread().getVisitStatesOnDisk()+";"+       // visitStatesOnDisk
+						(entrySummaryStats != null ? (long)entrySummaryStats.sum() : "0")+";"+// visitStatesOnWorkbench
+						frontier.newVisitStates.size()+";"+                         // waitingVisitStates
+						frontier.weightOfpathQueriesInQueues.get()                  // workbenchByteSize
+					);
 
 					frontier.virtualizer.collectIf(.50, .75);
 				}
