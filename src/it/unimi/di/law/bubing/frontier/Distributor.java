@@ -211,12 +211,12 @@ public final class Distributor extends Thread {
 						time+";"+
 						frontier.workbench.approximatedSize()+";"+                  // IPOnWorkbench
 						frontier.pathQueriesInQueues.get()+";"+                     // URLsInQueues
-						100.0 * frontier.weightOfpathQueriesInQueues.get() / frontier.rc.workbenchMaxByteSize+";"+ // URLsInQueuesPercentage
+						(100.0 * frontier.weightOfpathQueriesInQueues.get() / frontier.rc.workbenchMaxByteSize)+";"+ // URLsInQueuesPercentage
 						frontier.getStatsThread().brokenPathQueryCount+";"+         // broken
 						frontier.brokenVisitStates.get()+";"+                       // brokenVisitStates
 						frontier.getStatsThread().brokenVisitStatesOnWorkbench+";"+ // broeknVisitStatesOnWorkbench
 						frontier.transferredBytes.get()+";"+                        // bytes
-						100.0 * frontier.duplicates.get() / (1 + frontier.archetypes())+";"+ // duplicatesPercentage
+						(100.0 * frontier.duplicates.get() / (1 + frontier.archetypes()))+";"+ // duplicatesPercentage
 						frontier.duplicates.get()+";"+                              // duplicates
 						(entrySummaryStats != null ? entrySummaryStats.mean() : "0.0")+";"+ // entryAverage
 						(entrySummaryStats != null ? entrySummaryStats.max() : "0.0")+";"+ // entryMax
@@ -225,11 +225,11 @@ public final class Distributor extends Thread {
 						(int)frontier.results.size()+";"+                           // readyToParse
 						frontier.readyURLs.size64()+";"+                            // readyURLs
 						frontier.numberOfReceivedURLs.get()+";"+                    // receivedURLs
-						frontier.fetchedResources.get() + frontier.fetchedRobots.get()+";"+ // requests
+						(frontier.fetchedResources.get() + frontier.fetchedRobots.get())+";"+ // requests
 						frontier.requiredFrontSize.get()+";"+                       // requiredFrontSize
 						frontier.getStatsThread().resolvedVisitStates+";"+          // resolvedVisitStates
 						frontier.fetchedResources.get()+";"+                        // resources
-						frontier.archetypes() + frontier.duplicates.get()+";"+      // storeSize
+						(frontier.archetypes() + frontier.duplicates.get())+";"+      // storeSize
 						frontier.todo.size()+";"+                                   // toDoSize
 						frontier.unknownHosts.size()+";"+                           // unknownHosts
 						frontier.getStatsThread().unresolved+";"+                   // unresolved
