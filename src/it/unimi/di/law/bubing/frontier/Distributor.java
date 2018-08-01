@@ -15,7 +15,7 @@ package it.unimi.di.law.bubing.frontier;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * EDIT: 2018-07-08 Karel ONDŘEJ - Add stats
+ * NOTICE: 07/2018 - Added stats
  */
 
 

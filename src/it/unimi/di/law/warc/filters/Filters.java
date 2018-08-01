@@ -20,7 +20,11 @@ import org.apache.http.HttpResponse;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * 
+ * NOTICE: 07/2018 Added language filters
  */
+
 
 import it.unimi.di.law.bubing.util.FetchData;
 import it.unimi.di.law.bubing.util.Link;
@@ -47,7 +51,9 @@ public class Filters {
 					HostEndsWith.class, HostEndsWithOneOf.class, HostEquals.class,
 					IsHttpResponse.class, IsProbablyBinary.class, PathEndsWithOneOf.class,
 					ResponseMatches.class, SchemeEquals.class, StatusCategory.class, URLEquals.class,
-					URLMatchesRegex.class, URLShorterThan.class
+					URLMatchesRegex.class, URLShorterThan.class, 
+                                        it.unimi.di.law.warc.filters.LanguageEquals.class, 
+					it.unimi.di.law.warc.filters.LanguageEqualsOneOf.class
 					}
 			);
 
