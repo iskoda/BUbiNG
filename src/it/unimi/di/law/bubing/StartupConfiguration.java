@@ -44,6 +44,8 @@ import com.martiansoftware.jsap.stringparsers.LongSizeStringParser;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * NOTICE: 08/2018 - Added flag to apply follow filter after parsing
  */
 
 import it.unimi.di.law.bubing.frontier.DNSThread;
@@ -387,6 +389,9 @@ public class StartupConfiguration {
 	@OptionalSpecification(value="2147483647")
 	public int spamDetectionPeriodicity;
 
+	/** Apply follow filter after parsing. */
+	@OptionalSpecification(value="false")
+	public boolean applyFollowFilterAfterParsing;
 
 	/* Checks */
 

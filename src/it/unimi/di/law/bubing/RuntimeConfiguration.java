@@ -44,6 +44,8 @@ import com.google.common.primitives.Ints;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * NOTICE: 08/2018 - Added flag to apply follow filter after parsing.
  */
 
 
@@ -258,6 +260,9 @@ public class RuntimeConfiguration {
 	/** @see StartupConfiguration#spamDetectionPeriodicity */
 	public final int spamDetectionPeriodicity;
 
+	/** @see StartupConfiguration#applyFollowFilterAfterParsing */
+	public final boolean applyFollowFilterAfterParsing;
+
 	/** The parser, instantiated. Parsers used by {@link ParsingThread} instances are obtained by {@linkplain FlyweightPrototype#copy() copying this parsers}. */
 	public final ArrayList<Parser<?>> parsers;
 
@@ -399,6 +404,9 @@ public class RuntimeConfiguration {
 			spamDetectionThreshold = startupConfiguration.spamDetectionThreshold;
 			spamDetectionPeriodicity = startupConfiguration.spamDetectionPeriodicity;
 
+			/* KnoT */
+			applyFollowFilterAfterParsing = startupConfiguration.applyFollowFilterAfterParsing;
+			/* End KnoT */
 			final List<Iterator<URI>> seedSequence = new ArrayList<>();
 			for(final String spec : startupConfiguration.seed) {
 				if (spec.length() == 0) continue; // Skip empty lines

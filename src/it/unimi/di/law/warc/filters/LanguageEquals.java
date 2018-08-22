@@ -44,7 +44,7 @@ public class LanguageEquals extends AbstractFilter<URIResponse> {
 		if (lang == null || lang.isReliable == false) return false;
 
 		if (LOGGER.isDebugEnabled()) LOGGER.debug("Language of page " + response.uri() + " is " + lang.language);
-		return lang.isReliable && this.language.equals(lang.language);
+		return this.language.equals(lang.language);
 	}
 
 	public static LanguageEquals valueOf(final String spec) {

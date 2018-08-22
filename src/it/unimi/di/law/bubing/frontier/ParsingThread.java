@@ -26,6 +26,8 @@ import org.slf4j.LoggerFactory;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * NOTICE: 08/2018 - Post-parse follow filter
  */
 
 import it.unimi.di.law.bubing.RuntimeConfiguration;
@@ -337,7 +339,7 @@ public class ParsingThread extends Thread {
 
 					byte[] digest = null;
 					String guessedCharset = null;
-					final LinkReceiver linkReceiver = rc.followFilter.apply(fetchData) ? new HTMLParser.SetLinkReceiver() : Parser.NULL_LINK_RECEIVER;
+					final LinkReceiver linkReceiver = rc.applyFollowFilterAfterParsing || rc.followFilter.apply(fetchData) ? new HTMLParser.SetLinkReceiver() : Parser.NULL_LINK_RECEIVER;
 
 					frontierLinkReceiver.init(fetchData.uri(), visitState.schemeAuthority, visitState.robotsFilter);
 					final long streamLength = fetchData.response().getEntity().getContentLength();
@@ -395,7 +397,7 @@ public class ParsingThread extends Thread {
 
 					final boolean isNotDuplicate = streamLength == 0 || frontier.digests.addHash(digest); // Essentially thread-safe; we do not consider zero-content pages as duplicates
 					if (LOGGER.isTraceEnabled()) LOGGER.trace("Decided that for {} isNotDuplicate={}", url, Boolean.valueOf(isNotDuplicate));
-					if (isNotDuplicate) for(final URI u: linkReceiver) frontierLinkReceiver.enqueue(u);
+					if (isNotDuplicate && (! rc.applyFollowFilterAfterParsing || rc.followFilter.apply(fetchData))) for(final URI u: linkReceiver) frontierLinkReceiver.enqueue(u);
 					else fetchData.isDuplicate(true);
 
 					// ALERT: store exceptions should cause shutdown.
