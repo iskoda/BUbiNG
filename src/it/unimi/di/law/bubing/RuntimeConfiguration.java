@@ -46,6 +46,7 @@ import com.google.common.primitives.Ints;
  * limitations under the License.
  *
  * NOTICE: 08/2018 - Added flag to apply follow filter after parsing.
+ *                 - Configurable supported SSL protocols
  */
 
 
@@ -193,6 +194,9 @@ public class RuntimeConfiguration {
 
 	/** @see StartupConfiguration#acceptAllCertificates */
 	public volatile boolean acceptAllCertificates;
+
+	/** @see StartupConfiguration#supportedSSLProtocols */
+	public String[] supportedSSLProtocols;
 
 	/** @see StartupConfiguration#rootDir */
 	public final File rootDir;

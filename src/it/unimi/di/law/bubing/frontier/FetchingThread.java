@@ -51,6 +51,9 @@ import com.google.common.primitives.Ints;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * NOTICE: 08/2018 - Fixed selection of SSL trust strategy.
+ *                 - Configurable supported SSL protocols
  */
 
 import it.unimi.di.law.bubing.RuntimeConfiguration;
@@ -136,26 +139,23 @@ public final class FetchingThread extends Thread implements Closeable {
 	protected static final class BasicHttpClientConnectionManagerWithAlternateDNS
 			extends BasicHttpClientConnectionManager {
 
-		static Registry<ConnectionSocketFactory> getDefaultRegistry() {
+		static Registry<ConnectionSocketFactory> getRegistry(final Frontier frontier) {
+			final SSLContext context = frontier.rc.acceptAllCertificates ? TRUST_ALL_CERTIFICATES_SSL_CONTEXT : TRUST_SELF_SIGNED_SSL_CONTEXT;
 			return RegistryBuilder.<ConnectionSocketFactory> create()
 					.register("http", PlainConnectionSocketFactory.getSocketFactory())
 					.register("https",
-							new SSLConnectionSocketFactory(SSLContexts.createSystemDefault(),
-									new String[] {
-											"TLSv1.2",
-											"TLSv1.1",
-											"TLSv1",
-											"SSLv3",
-											"SSLv2Hello",
-									}, null, new NoopHostnameVerifier()))
+							new SSLConnectionSocketFactory(
+									context,
+									frontier.rc.supportedSSLProtocols, 
+									null, 
+									NoopHostnameVerifier.INSTANCE))
 					.build();
 		}
 
-		public BasicHttpClientConnectionManagerWithAlternateDNS(final DnsResolver dnsResolver) {
-			super(getDefaultRegistry(), null, null, dnsResolver);
+		public BasicHttpClientConnectionManagerWithAlternateDNS(final Frontier frontier) {
+			super(getRegistry(frontier), null, null, frontier.rc.dnsResolver);
 		}
 	}
-
 
 	private static int length(final String s) {
 		return s == null ? 0 : s.length();
@@ -200,7 +200,7 @@ public final class FetchingThread extends Thread implements Closeable {
 		setPriority(Thread.MIN_PRIORITY); // Low priority; there will be thousands of this guys around.
 		this.frontier = frontier;
 
-		final BasicHttpClientConnectionManager connManager = new BasicHttpClientConnectionManagerWithAlternateDNS(frontier.rc.dnsResolver);
+		final BasicHttpClientConnectionManager connManager = new BasicHttpClientConnectionManagerWithAlternateDNS(frontier);
 		connManager.closeIdleConnections(0, TimeUnit.MILLISECONDS);
 		connManager.setConnectionConfig(ConnectionConfig.custom().setBufferSize(8 * 1024).build()); // TODO: make this configurable
 

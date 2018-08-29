@@ -89,7 +89,7 @@ public final class LanguageTextProcessor implements TextProcessor<NNetLanguageId
 		// find a better way to pass the result to language filters
 		LanguageTextProcessor textProcessor = languageIdentifiers.get(responseUrl);
 		if (textProcessor == null) {
-			LOGGER.info("I can not find a text processor for uri: " + responseUrl);
+			if (LOGGER.isDebugEnabled()) LOGGER.debug("I can not find a text processor for uri: " + responseUrl);
 			return null;
 		}
 

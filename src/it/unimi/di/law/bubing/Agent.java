@@ -45,7 +45,8 @@ import com.martiansoftware.jsap.UnflaggedOption;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * EDIT: 2018-07-08 Karel ONDŘEJ - Add method saveURLs
+ * NOTICE: 07/2018 - Add method saveURLs.
+ *         08/2018 - Show broken IP on workbench.
  */
 
 
@@ -685,6 +686,11 @@ public class Agent extends JGroupsJobManager<BubingJob> {
 		return  frontier.getStatsThread().brokenVisitStatesOnWorkbench;
 	}
 
+	@ManagedAttribute @Description("Number of broken entries on the workbench")
+	public long getBrokenIPOnWorkbench() {
+		return  frontier.workbench.broken.get();
+	}
+        
 	@ManagedAttribute @Description("Number of new VisitState instances waiting to be resolved")
 	public int getWaitingVisitStates() {
 		return frontier.newVisitStates.size();

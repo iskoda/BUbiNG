@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
  * limitations under the License.
  *
  * NOTICE: 08/2018 - Post-parse follow filter
+ *                 - Added rule for SSLHandshakeException in retries policy
  */
 
 import it.unimi.di.law.bubing.RuntimeConfiguration;
@@ -87,6 +88,7 @@ public class ParsingThread extends Thread {
 		//EXCEPTION_TO_WAIT_TIME.put(java.net.SocketTimeoutException.class, 10000);
 		EXCEPTION_TO_WAIT_TIME.put(java.net.UnknownHostException.class, TimeUnit.HOURS.toMillis(1));
 		//EXCEPTION_TO_WAIT_TIME.put(java.net.UnknownHostException.class, 5000);
+		EXCEPTION_TO_WAIT_TIME.put(javax.net.ssl.SSLHandshakeException.class, TimeUnit.MINUTES.toMillis(1));
 		EXCEPTION_TO_WAIT_TIME.put(javax.net.ssl.SSLPeerUnverifiedException.class, TimeUnit.HOURS.toMillis(1));
 		EXCEPTION_TO_WAIT_TIME.put(org.apache.http.client.CircularRedirectException.class, 0);
 		EXCEPTION_TO_WAIT_TIME.put(org.apache.http.client.RedirectException.class, 0);
@@ -100,6 +102,7 @@ public class ParsingThread extends Thread {
 
 		EXCEPTION_TO_MAX_RETRIES.defaultReturnValue(5);
 		EXCEPTION_TO_MAX_RETRIES.put(java.net.UnknownHostException.class, 2);
+		EXCEPTION_TO_MAX_RETRIES.put(javax.net.ssl.SSLHandshakeException.class, 1);
 		EXCEPTION_TO_MAX_RETRIES.put(javax.net.ssl.SSLPeerUnverifiedException.class, 0);
 		EXCEPTION_TO_MAX_RETRIES.put(org.apache.http.client.CircularRedirectException.class, 0);
 		EXCEPTION_TO_MAX_RETRIES.put(org.apache.http.client.RedirectException.class, 0);

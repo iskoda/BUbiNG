@@ -45,7 +45,8 @@ import com.martiansoftware.jsap.stringparsers.LongSizeStringParser;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * NOTICE: 08/2018 - Added flag to apply follow filter after parsing
+ * NOTICE: 08/2018 - Added flag to apply follow filter after parsing.
+ *                 - Configurable supported SSL protocols.
  */
 
 import it.unimi.di.law.bubing.frontier.DNSThread;
@@ -289,6 +290,11 @@ public class StartupConfiguration {
 	/** Whether to accept all SSL certificates, or self-signed only. */
 	@OptionalSpecification(value="true")
 	public boolean acceptAllCertificates;
+
+	/** Supported SSL protocols. */
+	@ManyValuesSpecification
+	@OptionalSpecification(value="TLSv1.2,TLSv1.1,TLSv1,SSLv3,SSLv2Hello")
+	public String[] supportedSSLProtocols;
 
 	/** A root directory from which the remainig one will be stemmed, if
 	 * they are relative. Note that this directory can be preexisting, and can be
