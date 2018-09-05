@@ -29,25 +29,21 @@ import org.slf4j.LoggerFactory;
 /** An implementation of a {@link Parser.TextProcessor} that identifier language of text. */
 public final class LanguageTextProcessor implements TextProcessor<NNetLanguageIdentifierWrapper.Result> {
 	private static final Logger LOGGER = LoggerFactory.getLogger(LanguageTextProcessor.class);
-
 	private static final NNetLanguageIdentifierWrapper IDENTIFIER = new NNetLanguageIdentifierWrapper();
+
 	private static final Map<URI, LanguageTextProcessor> languageIdentifiers = new ConcurrentHashMap<>();
 
 	private URI uri;
 	private StringBuilder textBuilder;
-	private boolean lastIsWhitespace;
 
 	public LanguageTextProcessor() {
 		this.uri = null;
 		this.textBuilder = new StringBuilder();
-		this.lastIsWhitespace = true;
 	}
 
 	@Override
 	public Appendable append(CharSequence csq) throws IOException {
-		for (int idx = 0; idx < csq.length(); idx++) {
-			this.textBuilder.append(csq.charAt(idx));
-                }
+		this.textBuilder.append(csq);
 		return this;
 	}
 
@@ -58,15 +54,7 @@ public final class LanguageTextProcessor implements TextProcessor<NNetLanguageId
 
 	@Override
 	public Appendable append(char c) throws IOException {
-		if (Character.isWhitespace(c)) {
-			if (this.lastIsWhitespace == false) {
-				this.textBuilder.append(" ");
-				this.lastIsWhitespace = true;
-			}
-		} else {
-			this.textBuilder.append(c);
-			this.lastIsWhitespace = false;
-		}
+		this.textBuilder.append(c);
 		return this;
 	}
 
@@ -77,8 +65,7 @@ public final class LanguageTextProcessor implements TextProcessor<NNetLanguageId
 
 		this.uri = responseUrl;
 		this.textBuilder = new StringBuilder();
-		this.lastIsWhitespace = true;
-        }
+	}
 
 	@Override
 	public NNetLanguageIdentifierWrapper.Result result() {
@@ -99,11 +86,5 @@ public final class LanguageTextProcessor implements TextProcessor<NNetLanguageId
 	@Override
 	public TextProcessor<NNetLanguageIdentifierWrapper.Result> copy() {
 		return new LanguageTextProcessor();
-	}
-
-	@Override
-	protected void finalize() throws Throwable {
-		super.finalize();
-		IDENTIFIER.dispose();
 	}
 }
