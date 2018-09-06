@@ -410,6 +410,7 @@ public class RuntimeConfiguration {
 
 			/* KnoT */
 			applyFollowFilterAfterParsing = startupConfiguration.applyFollowFilterAfterParsing;
+			supportedSSLProtocols = startupConfiguration.supportedSSLProtocols;                        
 			/* End KnoT */
 			final List<Iterator<URI>> seedSequence = new ArrayList<>();
 			for(final String spec : startupConfiguration.seed) {
