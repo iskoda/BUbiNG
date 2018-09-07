@@ -55,6 +55,7 @@ import it.unimi.di.law.bubing.parser.Parser;
 import it.unimi.di.law.bubing.spam.SpamDetector;
 import it.unimi.di.law.bubing.store.Store;
 import it.unimi.di.law.bubing.util.BURL;
+import it.unimi.di.law.bubing.util.FetchData;
 import it.unimi.di.law.bubing.util.Link;
 import it.unimi.di.law.warc.filters.Filter;
 import it.unimi.di.law.warc.filters.Filters;
@@ -66,6 +67,7 @@ import it.unimi.dsi.io.LineIterator;
 import it.unimi.dsi.lang.FlyweightPrototype;
 import it.unimi.dsi.lang.MutableString;
 import it.unimi.dsi.lang.ObjectParser;
+import java.util.Arrays;
 
 //RELEASE-STATUS: DIST
 
@@ -121,10 +123,10 @@ public class RuntimeConfiguration {
 	public volatile Filter<URIResponse> parseFilter;
 
 	/** @see StartupConfiguration#followFilter */
-	public volatile Filter<URIResponse> followFilter;
+	public volatile Filter<FetchData> followFilter;
 
 	/** @see StartupConfiguration#storeFilter */
-	public volatile Filter<URIResponse> storeFilter;
+	public volatile Filter<FetchData> storeFilter;
 
 	/** @see StartupConfiguration#keepAliveTime */
 	public volatile long keepAliveTime;
@@ -410,7 +412,8 @@ public class RuntimeConfiguration {
 
 			/* KnoT */
 			applyFollowFilterAfterParsing = startupConfiguration.applyFollowFilterAfterParsing;
-			supportedSSLProtocols = startupConfiguration.supportedSSLProtocols;                        
+			supportedSSLProtocols = startupConfiguration.supportedSSLProtocols;  
+			LOGGER.info("Supported SSL protocols: " + Arrays.toString(supportedSSLProtocols));
 			/* End KnoT */
 			final List<Iterator<URI>> seedSequence = new ArrayList<>();
 			for(final String spec : startupConfiguration.seed) {

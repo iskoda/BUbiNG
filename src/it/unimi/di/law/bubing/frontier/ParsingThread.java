@@ -1,5 +1,6 @@
 package it.unimi.di.law.bubing.frontier;
 
+import cz.vutbr.fit.knot.NNetLanguageIdentifierWrapper;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.BufferOverflowException;
@@ -33,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import it.unimi.di.law.bubing.RuntimeConfiguration;
 import it.unimi.di.law.bubing.parser.HTMLParser;
+import it.unimi.di.law.bubing.parser.LanguageTextProcessor;
 import it.unimi.di.law.bubing.parser.Parser;
 import it.unimi.di.law.bubing.parser.Parser.LinkReceiver;
 import it.unimi.di.law.bubing.parser.SpamTextProcessor;
@@ -50,6 +52,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import it.unimi.dsi.fastutil.shorts.Short2ShortMap;
+import org.apache.http.HttpHeaders;
 
 //RELEASE-STATUS: DIST
 
@@ -356,15 +359,23 @@ public class ParsingThread extends Thread {
 										parserFound = true;
 										try {
 											digest = parser.parse(fetchData.uri(), fetchData.response(), linkReceiver);
+											final Object result = parser.result();
 											// Spam detection (NOTE: skipped if the parse() method throws an exception)
 											if (rc.spamDetector != null && (visitState.termCountUpdates < rc.spamDetectionThreshold || rc.spamDetectionPeriodicity != Integer.MAX_VALUE)) {
-												final Object result = parser.result();
 												if (result instanceof SpamTextProcessor.TermCount) visitState.updateTermCount((SpamTextProcessor.TermCount)result);
 												if ((visitState.termCountUpdates - rc.spamDetectionThreshold) % rc.spamDetectionPeriodicity == 0) {
 													visitState.spammicity = (float)((SpamDetector<Short2ShortMap>)rc.spamDetector).estimate(visitState.termCount);
 													LOGGER.info("Spammicity for " + visitState + ": " + visitState.spammicity + " (" + visitState.termCountUpdates + " updates)");
 												}
 											}
+											if (result instanceof NNetLanguageIdentifierWrapper.Result) {
+												NNetLanguageIdentifierWrapper.Result language = (NNetLanguageIdentifierWrapper.Result)result;
+												if ((language).isReliable) {
+													if (LOGGER.isDebugEnabled()) LOGGER.debug("Language of page " + fetchData.uri()+ " is: "+language.language);
+													fetchData.additionalInformation.put(LanguageTextProcessor.IDENTIFIED_LANGUAGE, language.language);
+												}
+											}
+
 										} catch(final BufferOverflowException e) {
 											LOGGER.warn("Buffer overflow during parsing of " + url + " with " + parser);
 										} catch(final IOException e) {
@@ -433,7 +444,7 @@ public class ParsingThread extends Thread {
 							frontier.duplicates.incrementAndGet();
 							result = "duplicate";
 						}
-						store.store(fetchData.uri(), fetchData.response(), ! isNotDuplicate, digest, guessedCharset);
+						store.store(fetchData.uri(), fetchData.response(), ! isNotDuplicate, digest, guessedCharset, fetchData.additionalInformation);
 					}
 					else result = "not stored";
 

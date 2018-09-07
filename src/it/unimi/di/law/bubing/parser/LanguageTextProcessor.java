@@ -20,24 +20,15 @@ import it.unimi.di.law.bubing.parser.Parser.TextProcessor;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** An implementation of a {@link Parser.TextProcessor} that identifier language of text. */
 public final class LanguageTextProcessor implements TextProcessor<NNetLanguageIdentifierWrapper.Result> {
-	private static final Logger LOGGER = LoggerFactory.getLogger(LanguageTextProcessor.class);
+	public static final String IDENTIFIED_LANGUAGE = "KnoT-Identified-Language";
+
 	private static final NNetLanguageIdentifierWrapper IDENTIFIER = new NNetLanguageIdentifierWrapper();
-
-	private static final Map<URI, LanguageTextProcessor> languageIdentifiers = new ConcurrentHashMap<>();
-
-	private URI uri;
 	private StringBuilder textBuilder;
 
 	public LanguageTextProcessor() {
-		this.uri = null;
 		this.textBuilder = new StringBuilder();
 	}
 
@@ -60,27 +51,12 @@ public final class LanguageTextProcessor implements TextProcessor<NNetLanguageId
 
 	@Override
 	public void init(URI responseUrl) {
-		if (this.uri != null) languageIdentifiers.remove(this.uri);
-		languageIdentifiers.put(responseUrl, this);
-
-		this.uri = responseUrl;
 		this.textBuilder = new StringBuilder();
 	}
 
 	@Override
 	public NNetLanguageIdentifierWrapper.Result result() {
 		return IDENTIFIER.findLanguage(this.textBuilder.toString());
-	}
-
-	static public NNetLanguageIdentifierWrapper.Result result(URI responseUrl) {
-		// find a better way to pass the result to language filters
-		LanguageTextProcessor textProcessor = languageIdentifiers.get(responseUrl);
-		if (textProcessor == null) {
-			if (LOGGER.isDebugEnabled()) LOGGER.debug("I can not find a text processor for uri: " + responseUrl);
-			return null;
-		}
-
-		return textProcessor.result();
 	}
 
 	@Override
