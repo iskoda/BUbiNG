@@ -14,8 +14,11 @@ package it.unimi.di.law.bubing.frontier;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * NOTICE: 09/2018 - IP redistribution
  */
 
+import it.unimi.di.law.bubing.util.BubingJob;
 import it.unimi.di.law.bubing.util.ByteArrayDiskQueue;
 import it.unimi.di.law.bubing.util.Util;
 
@@ -58,7 +61,15 @@ public final class MessageThread extends Thread {
 				receivedURLs.dequeue();
 				if (LOGGER.isTraceEnabled()) LOGGER.trace("Dequeued URL {} from the message queue", Util.toString(receivedURLs.buffer()));
 				frontier.numberOfReceivedURLs.incrementAndGet();
-				frontier.enqueueLocal(receivedURLs.buffer());
+				BubingJob job = BubingJob.fromByteArray(receivedURLs.buffer().toByteArray(), 0);
+				if (job.ipAddress.isEmpty()) {
+					frontier.enqueueLocal(job.url);
+				}
+				else {
+					synchronized(frontier.sieve) {
+						frontier.readyURLs.enqueue(job.url.toByteArray());
+					}
+				}
 			}
 		}
 		catch (Throwable t) {

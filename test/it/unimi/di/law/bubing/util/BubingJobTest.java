@@ -36,4 +36,16 @@ public class BubingJobTest {
 		assertEquals(string2Hash64("http://example.com/foo.html"), string2Hash64("http://example.com/foo.html:"));
 	}
 
+	@Test
+	public void serial() {
+		ByteArrayList url = new ByteArrayList(27);
+		Util.toByteArrayList(new String("http://example.com/foo.html"), url);
+		ByteArrayList ip = new ByteArrayList(new byte[]{(byte)192, (byte)168, (byte)99, (byte)73});
+            
+		BubingJob job = new BubingJob(url, ip);
+		BubingJob job2 = BubingJob.fromByteArray(BubingJob.toByteArray(job), 0);
+
+		assertEquals(job.url, job2.url);
+		assertEquals(job.ipAddress, job2.ipAddress);
+	}
 }

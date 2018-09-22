@@ -103,6 +103,7 @@ public final class Distributor extends Thread {
 			long fullWorkbenchSleepTime = 0, largeFrontSleepTime = 0, noReadyURLsSleepTime = 0;
 			long movedFromSieveToVirtualizer = 0, movedFromSieveToOverflow = 0, movedFromSieveToWorkbench = 0, deletedFromSieve = 0;
 			/* During the following loop, you should set round to -1 every time something useful is done (e.g., a URL is read from the sieve, or from the virtual queues etc.) */
+			ByteArrayList byteList = new ByteArrayList();
 			for(int round = 0; ; round++) {
 				frontier.rc.ensureNotPaused();
 				if (frontier.rc.stopping) break;
@@ -111,12 +112,23 @@ public final class Distributor extends Thread {
 				final boolean workbenchIsFull = frontier.workbenchIsFull();
 				final boolean frontIsSmall = frontIsSmall();
 
+				/* Redistribute the URL from the virtualizer workbench */
+				VisitState nonLocal = frontier.nonLocalVisitStates.poll();
+				if (nonLocal != null) {
+					round = -1;
+					final int pathQueryLimit = (int)frontier.virtualizer.count(nonLocal);
+					if (pathQueryLimit != 0) {
+						final int dequeuedURLs = frontier.virtualizer.dequeuePathQueries(nonLocal, pathQueryLimit);
+						movedFromQueues += dequeuedURLs;
+					}
+					frontier.submitVisitState(nonLocal);
+				}
 				/* The basic logic of workbench updates is that if the front is large enough, we don't do anything.
 				 * In this way we both automatically batch disk reads and reduce core memory usage. The required
 				 * front size is adaptively set by FetchingThread instances when they detect that the
 				 * visit states in the todo list plus workbench.size() is below the current required size
 				 * (i.e., we are counting IPs). */
-				if (! workbenchIsFull) {
+                                else if (! workbenchIsFull) {
 					synchronized(frontier.sieve) {} // We stop here if we are flushing.
 
 					VisitState visitState = frontier.refill.poll();
@@ -168,21 +180,23 @@ public final class Distributor extends Thread {
 									movedFromSieveToWorkbench++;
 								}
 								else {
-									if (frontier.virtualizer.count(visitState) > 0) {
-										// Safe: there are URLs on disk, and this fact cannot change concurrently.
-										movedFromSieveToVirtualizer++;
-										frontier.virtualizer.enqueueURL(visitState, url);
-									}
-									else if (visitState.size() < visitState.pathQueryLimit() && visitState.workbenchEntry != null && visitState.lastExceptionClass == null) {
-										/* Safe: we are enqueueing to a sane (modulo race conditions)
-										 * visit state, which will be necessarily go through the DoneThread later. */
-										visitState.checkRobots(now);
-										visitState.enqueuePathQuery(BURL.pathAndQueryAsByteArray(url));
-										movedFromSieveToWorkbench++;
-									}
-									else { // visitState.urlsOnDisk == 0
-										movedFromSieveToVirtualizer++;
-										frontier.virtualizer.enqueueURL(visitState, url);
+									if (! frontier.enqueueURLWithIP(url, visitState)) {
+										if (frontier.virtualizer.count(visitState) > 0) {
+											// Safe: there are URLs on disk, and this fact cannot change concurrently.
+											movedFromSieveToVirtualizer++;
+											frontier.virtualizer.enqueueURL(visitState, url);
+										}
+										else if (visitState.size() < visitState.pathQueryLimit() && visitState.workbenchEntry != null && visitState.lastExceptionClass == null) {
+											/* Safe: we are enqueueing to a sane (modulo race conditions)
+											 * visit state, which will be necessarily go through the DoneThread later. */
+											visitState.checkRobots(now);
+											visitState.enqueuePathQuery(BURL.pathAndQueryAsByteArray(url));
+											movedFromSieveToWorkbench++;
+										}
+										else { // visitState.urlsOnDisk == 0
+											movedFromSieveToVirtualizer++;
+											frontier.virtualizer.enqueueURL(visitState, url);
+										}
 									}
 								}
 							}

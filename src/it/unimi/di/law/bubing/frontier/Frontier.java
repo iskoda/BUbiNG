@@ -64,6 +64,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.DelayQueue;
@@ -290,6 +291,10 @@ public class Frontier implements JobListener<BubingJob>, AbstractSieve.NewFlowRe
 	 * {@linkplain #distributor} and emptied by the {@linkplain #dnsThreads DNS threads}. */
 	public final LinkedBlockingQueue<VisitState> newVisitStates;
 
+	/** The queue of ready visit states to redistribution {@linkplain VisitState visit states}; 
+	 * filled by the {linkplain #dnsThreads DNS threads} and emptied by the {@linkplain #distributor}. */
+	protected final LockFreeQueue<VisitState> nonLocalVisitStates;
+
 	/** A Bloom filter storing page digests for duplicate detection. */
 	public BloomFilter<Void> digests;
 
@@ -486,6 +491,7 @@ public class Frontier implements JobListener<BubingJob>, AbstractSieve.NewFlowRe
 		refill = new LockFreeQueue<>();
 		results = new LockFreeQueue<>();
 		distributor = new Distributor(this);
+		nonLocalVisitStates = new LockFreeQueue<>();
 
 		// Configures Jericho to use SLF4J
 		Config.LoggerProvider = LoggerProvider.SLF4J;
@@ -647,6 +653,81 @@ public class Frontier implements JobListener<BubingJob>, AbstractSieve.NewFlowRe
 		return;
 	}
 
+	/** Enqueues a URL with IP address to the the BUbiNG crawl.
+	 *
+	 * @param url a {@linkplain BURL BUbiNG URL} to be enqueued to the BUbiNG crawl.
+	 * @param visitState the visit state of that URL
+	 * @return true if it enqueue the URL to the queue
+	 * @throws InterruptedException from {@link AbstractSieve#enqueue(Object, Object)}. */
+	public boolean enqueueURLWithIP(final ByteArrayList url, final VisitState visitState) throws IOException, InterruptedException {
+		if (visitState.workbenchEntry == null) return false;
+            
+		final ByteArrayList ipAddress = new ByteArrayList(visitState.workbenchEntry.ipAddress.length);
+		ipAddress.addElements(0, visitState.workbenchEntry.ipAddress);
+                
+		final BubingJob job = new BubingJob(url, ipAddress);
+
+		if (agent.local(job)) {
+			return false;
+		}
+		else try {
+			if (url == null || virtualizer.count(visitState) > 0) {
+				nonLocalVisitStates.add(visitState);
+			} else {
+				if (LOGGER.isTraceEnabled()) LOGGER.trace("Sending out scheme+authority {} with IP {} and path+query {} ", it.unimi.di.law.bubing.util.Util.toString(visitState.schemeAuthority), Arrays.toString(visitState.workbenchEntry.ipAddress), it.unimi.di.law.bubing.util.Util.toString(BURL.pathAndQueryAsByteArray(url)));
+				agent.submit(job);
+			}
+		}
+		catch (IllegalStateException e) {
+			// This just shouldn't happen.
+			LOGGER.warn("Impossible to submit URL " + BURL.fromNormalizedByteArray(url.toByteArray()), e);
+		}
+		catch (NoSuchJobManagerException e) {
+			// This just shouldn't happen.
+			LOGGER.warn("Impossible to submit URL " + BURL.fromNormalizedByteArray(url.toByteArray()), e);
+		}
+
+		return true;
+	}
+
+	/** Submit all URLs from visit state to the the BUbiNG crawl.
+	 * 
+	 * @param visitState
+	 * @throws IOException
+	 * @throws InterruptedException 
+	 */
+	public void submitVisitState(final VisitState visitState) throws IOException, InterruptedException {
+		final ByteArrayList byteList = new ByteArrayList();
+		final ByteArrayList ipAddress = new ByteArrayList(visitState.workbenchEntry.ipAddress.length);
+		ipAddress.addElements(0, visitState.workbenchEntry.ipAddress);
+
+		while(! visitState.isEmpty()) {
+			final byte[] path = visitState.firstPath();
+			final URI url = BURL.fromNormalizedSchemeAuthorityAndPathQuery(visitState.schemeAuthority, path);
+			if (path != VisitState.ROBOTS_PATH) {
+				BURL.toByteArrayList(url, byteList);
+				final BubingJob job = new BubingJob(byteList, ipAddress);
+				try {
+					if (LOGGER.isTraceEnabled()) 
+						LOGGER.trace("Sending out scheme+authority {} with path+query {} and IP {}", 
+								it.unimi.di.law.bubing.util.Util.toString(visitState.schemeAuthority),
+								it.unimi.di.law.bubing.util.Util.toString(path),
+								Arrays.toString(job.ipAddress.elements()));
+					agent.submit(job);
+				}
+				catch (IllegalStateException e) {
+					// This just shouldn't happen.
+					LOGGER.warn("Impossible to submit URL " + BURL.fromNormalizedByteArray(path), e);
+				}
+				catch (NoSuchJobManagerException e) {
+					// This just shouldn't happen.
+					LOGGER.warn("Impossible to submit URL " + BURL.fromNormalizedByteArray(path), e);
+				}
+			}
+			visitState.dequeue();
+		}
+	}
+
 	/** Returns whether the workbench is full.
 	 *
 	 * @return whether the workbench is full. */
@@ -685,10 +766,10 @@ public class Frontier implements JobListener<BubingJob>, AbstractSieve.NewFlowRe
 
 	@Override
 	public void receive(final BubingJob job) {
-		if (LOGGER.isDebugEnabled()) LOGGER.debug("Receiving job {}", job.url);
+		if (LOGGER.isDebugEnabled()) LOGGER.debug("Receiving job {} with IP {}", job.url, job.ipAddress);
 		try {
 			// Note that this is blocking, but blocking should be very rare and short.
-			quickReceivedURLs.put(job.url);
+			quickReceivedURLs.put(new ByteArrayList(BubingJob.toByteArray(job)));
 		}
 		catch (Exception e) {
 			LOGGER.error("Error while enqueueing " + job.url, e);

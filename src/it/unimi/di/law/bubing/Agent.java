@@ -171,12 +171,12 @@ public class Agent extends JGroupsJobManager<BubingJob> {
 
 	@Override
 	public byte[] toByteArray(final BubingJob job) throws IllegalArgumentException {
-		return job.url.toByteArray();
+		return BubingJob.toByteArray(job);
 	}
 
 	@Override
 	public BubingJob fromByteArray(byte[] array, int offset) throws IllegalArgumentException {
-		return new BubingJob(ByteArrayList.wrap(Arrays.copyOfRange(array, offset, array.length)));
+		return BubingJob.fromByteArray(array, offset);
 	}
 
 	/** Returns the number of agents currently known to the JAI4J {@link RemoteJobManager}.

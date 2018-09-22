@@ -94,7 +94,12 @@ public final class DNSThread extends Thread {
 
 					visitState.lastExceptionClass = null; // In case we had previously set UnknownHostException.class
 					// Fetch or create atomically a new workbench entry.
-					visitState.setWorkbenchEntry(frontier.workbench.getWorkbenchEntry(address));
+
+					visitState.workbenchEntry = frontier.workbench.getWorkbenchEntry(address);
+
+					if (! frontier.enqueueURLWithIP(null, visitState)) {
+						visitState.setWorkbenchEntry(frontier.workbench.getWorkbenchEntry(address));
+					}
 				}
 				catch(UnknownHostException e) {
 					LOGGER.warn("Unknown host " + host + " for visit state " + visitState);
