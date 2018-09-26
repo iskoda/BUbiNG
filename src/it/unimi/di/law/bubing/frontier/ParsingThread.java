@@ -451,7 +451,7 @@ public class ParsingThread extends Thread {
 							result = "duplicate";
 						}
 						if (visitState.workbenchEntry != null) {
-							fetchData.additionalInformation.put(WarcHeader.Name.WARC_PAYLOAD_DIGEST.toString(), it.unimi.di.law.bubing.util.Util.ipAddrToString(visitState.workbenchEntry.ipAddress));
+							fetchData.additionalInformation.put(WarcHeader.Name.WARC_IP_ADDRESS.toString(), it.unimi.di.law.bubing.util.Util.ipAddrToString(visitState.workbenchEntry.ipAddress));
 						}
 						store.store(fetchData.uri(), fetchData.response(), ! isNotDuplicate, digest, guessedCharset, fetchData.additionalInformation);
 					}
