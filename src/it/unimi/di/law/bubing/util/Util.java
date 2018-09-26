@@ -6,6 +6,8 @@ import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 import org.apache.commons.lang.BooleanUtils;
 
@@ -296,6 +298,14 @@ public class Util {
 		return new String(charArray);
 	}
 
-
+	/** Returns a string representation of IP address.
+	 * 
+	 * @param ip an IP address byte array
+	 * @return a string representation of IP address.
+	 * @throws UnknownHostException if IP is not valid
+	 */
+	public static String ipAddrToString(byte[] ip) throws UnknownHostException {
+		return InetAddress.getByAddress(ip).getHostAddress();
+	}
 
 }

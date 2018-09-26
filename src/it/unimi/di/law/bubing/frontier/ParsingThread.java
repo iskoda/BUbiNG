@@ -46,13 +46,13 @@ import it.unimi.di.law.bubing.util.Link;
 import it.unimi.di.law.bubing.util.URLRespectsRobots;
 import it.unimi.di.law.warc.filters.Filter;
 import it.unimi.di.law.warc.records.HttpResponseWarcRecord;
+import it.unimi.di.law.warc.records.WarcHeader;
 import it.unimi.dsi.Util;
 import it.unimi.dsi.fastutil.bytes.ByteArrayList;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import it.unimi.dsi.fastutil.shorts.Short2ShortMap;
-import org.apache.http.HttpHeaders;
 
 //RELEASE-STATUS: DIST
 
@@ -411,8 +411,14 @@ public class ParsingThread extends Thread {
 
 					final boolean isNotDuplicate = streamLength == 0 || frontier.digests.addHash(digest); // Essentially thread-safe; we do not consider zero-content pages as duplicates
 					if (LOGGER.isTraceEnabled()) LOGGER.trace("Decided that for {} isNotDuplicate={}", url, Boolean.valueOf(isNotDuplicate));
-					if (isNotDuplicate && (! rc.applyFollowFilterAfterParsing || rc.followFilter.apply(fetchData))) for(final URI u: linkReceiver) frontierLinkReceiver.enqueue(u);
-					else fetchData.isDuplicate(true);
+					if (isNotDuplicate) {
+						if (! rc.applyFollowFilterAfterParsing || rc.followFilter.apply(fetchData)) {
+							for(final URI u: linkReceiver) frontierLinkReceiver.enqueue(u);
+						}
+					}
+					else {
+						fetchData.isDuplicate(true);
+					}
 
 					// ALERT: store exceptions should cause shutdown.
 					final String result;
@@ -443,6 +449,9 @@ public class ParsingThread extends Thread {
 						else {
 							frontier.duplicates.incrementAndGet();
 							result = "duplicate";
+						}
+						if (visitState.workbenchEntry != null) {
+							fetchData.additionalInformation.put(WarcHeader.Name.WARC_PAYLOAD_DIGEST.toString(), it.unimi.di.law.bubing.util.Util.ipAddrToString(visitState.workbenchEntry.ipAddress));
 						}
 						store.store(fetchData.uri(), fetchData.response(), ! isNotDuplicate, digest, guessedCharset, fetchData.additionalInformation);
 					}

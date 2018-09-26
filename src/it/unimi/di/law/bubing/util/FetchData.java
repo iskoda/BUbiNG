@@ -191,7 +191,7 @@ public class FetchData implements URIResponse, Closeable {
 
 	/** Additional information about this fetched response. */
 	public final Map<String,  String> additionalInformation;
-        
+
 	/** Creates a fetched response according to the given properties.
 	 *
 	 * @param rc the runtime configuration.
@@ -294,7 +294,7 @@ public class FetchData implements URIResponse, Closeable {
 		this.robots = robots;
 
 		this.additionalInformation.clear();
-                
+
 		assert url.getHost() != null : url;
 
 		httpGet.setURI(url);
@@ -326,7 +326,7 @@ public class FetchData implements URIResponse, Closeable {
 				final URI uri = httpGet.getURI();
 				final String scheme = uri.getScheme();
 				final int port = uri.getPort() == -1 ? (scheme.equals("https") ? 443 : 80) : uri.getPort();
- 				final HttpHost httpHost = visitState != null ? 
+ 				final HttpHost httpHost = visitState != null ?
 					new HttpHost(InetAddress.getByAddress(visitState.workbenchEntry.ipAddress), uri.getHost(), port, scheme) :
  					new HttpHost(uri.getHost(), port, scheme);
  				httpClient.execute(httpHost, httpGet, new ResponseHandler<Void>() {
