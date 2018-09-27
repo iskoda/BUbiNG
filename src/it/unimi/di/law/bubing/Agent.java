@@ -56,6 +56,7 @@ import it.unimi.di.law.bubing.frontier.QuickMessageThread;
 import it.unimi.di.law.bubing.store.Store;
 import it.unimi.di.law.bubing.util.BURL;
 import it.unimi.di.law.bubing.util.BubingJob;
+import it.unimi.di.law.bubing.util.FetchData;
 import it.unimi.di.law.bubing.util.Link;
 import it.unimi.di.law.warc.filters.URIResponse;
 import it.unimi.di.law.warc.filters.parser.FilterParser;
@@ -341,7 +342,7 @@ public class Agent extends JGroupsJobManager<BubingJob> {
 
 	@ManagedAttribute
 	public void setFollowFilter(String spec) throws ParseException {
-		rc.followFilter = new FilterParser<>(URIResponse.class).parse(spec);
+		rc.followFilter = new FilterParser<>(FetchData.class).parse(spec);
 	}
 
 	@ManagedAttribute @Description("Filter that will be applied to all fetched responses to decide whether to follow their links")
@@ -351,7 +352,7 @@ public class Agent extends JGroupsJobManager<BubingJob> {
 
 	@ManagedAttribute
 	public void setStoreFilter(String spec) throws ParseException {
-		rc.storeFilter = new FilterParser<>(URIResponse.class).parse(spec);
+		rc.storeFilter = new FilterParser<>(FetchData.class).parse(spec);
 	}
 
 	@ManagedAttribute @Description("Filter that will be applied to all fetched responses to decide whether to store them")

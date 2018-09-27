@@ -55,6 +55,8 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Charsets;
 import com.google.common.net.HttpHeaders;
+import java.util.HashMap;
+import java.util.Map;
 
 //RELEASE-STATUS: DIST
 
@@ -187,6 +189,8 @@ public class FetchData implements URIResponse, Closeable {
 	/** The {@link RuntimeConfiguration}, cached. */
 	private final RuntimeConfiguration rc;
 
+	/** Additional information about this fetched response. */
+	public final Map<String,  String> additionalInformation;
 
 	/** Creates a fetched response according to the given properties.
 	 *
@@ -199,6 +203,7 @@ public class FetchData implements URIResponse, Closeable {
 		httpGet = new HttpGet();
 		// TODO: This should be done more properly
 		binaryParser = new BinaryParser(rc.digestAlgorithm);
+		additionalInformation = new HashMap<>();
 		//context = new BasicHttpContext();
 		//cachingAsyncByteConsumer = new CachingAsyncByteConsumer(this);
 		//enqueueFetchedHttpResponseFutureCallback = new EnqueueFetchedHttpResponseFutureCallback(this);
@@ -288,6 +293,8 @@ public class FetchData implements URIResponse, Closeable {
 		this.isDuplicate = false;
 		this.robots = robots;
 
+		this.additionalInformation.clear();
+
 		assert url.getHost() != null : url;
 
 		httpGet.setURI(url);
@@ -319,7 +326,7 @@ public class FetchData implements URIResponse, Closeable {
 				final URI uri = httpGet.getURI();
 				final String scheme = uri.getScheme();
 				final int port = uri.getPort() == -1 ? (scheme.equals("https") ? 443 : 80) : uri.getPort();
- 				final HttpHost httpHost = visitState != null ? 
+ 				final HttpHost httpHost = visitState != null ?
 					new HttpHost(InetAddress.getByAddress(visitState.workbenchEntry.ipAddress), uri.getHost(), port, scheme) :
  					new HttpHost(uri.getHost(), port, scheme);
  				httpClient.execute(httpHost, httpGet, new ResponseHandler<Void>() {

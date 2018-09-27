@@ -14,11 +14,14 @@ package it.unimi.di.law.bubing.store;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * NOTICE: 09/2018 - Added additional information to store
  */
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Map;
 
 import org.apache.http.HttpResponse;
 
@@ -28,7 +31,7 @@ import org.apache.http.HttpResponse;
 
 public interface Store extends Closeable {
 
-	void store(final URI uri, final HttpResponse response, boolean isDuplicate, final byte[] contentDigest, final String guessedCharset) throws IOException, InterruptedException;
+	void store(final URI uri, final HttpResponse response, boolean isDuplicate, final byte[] contentDigest, final String guessedCharset, final Map<String, String> additionalInformation) throws IOException, InterruptedException;
 
 	@Override
 	void close() throws IOException;

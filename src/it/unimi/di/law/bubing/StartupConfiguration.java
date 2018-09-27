@@ -191,12 +191,12 @@ public class StartupConfiguration {
 	public Filter<URIResponse> parseFilter;
 
 	/** A filter that will be applied to all parsed resources to decide whether to follow their links. */
-	@FilterSpecification(type = URIResponse.class)
-	public Filter<URIResponse> followFilter;
+	@FilterSpecification(type = FetchData.class)
+	public Filter<FetchData> followFilter;
 
 	/** A filter that will be applied to all fetched resources to decide whether to store them. */
-	@FilterSpecification(type = URIResponse.class)
-	public Filter<URIResponse> storeFilter;
+	@FilterSpecification(type = FetchData.class)
+	public Filter<FetchData> storeFilter;
 
 	/** If zero, connections are closed at each downloaded resource.
 	 * Otherwise, the time span to download continuously from

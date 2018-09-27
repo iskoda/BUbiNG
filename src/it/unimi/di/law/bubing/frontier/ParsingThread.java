@@ -1,5 +1,6 @@
 package it.unimi.di.law.bubing.frontier;
 
+import cz.vutbr.fit.knot.NNetLanguageIdentifierWrapper;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.BufferOverflowException;
@@ -33,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import it.unimi.di.law.bubing.RuntimeConfiguration;
 import it.unimi.di.law.bubing.parser.HTMLParser;
+import it.unimi.di.law.bubing.parser.LanguageTextProcessor;
 import it.unimi.di.law.bubing.parser.Parser;
 import it.unimi.di.law.bubing.parser.Parser.LinkReceiver;
 import it.unimi.di.law.bubing.parser.SpamTextProcessor;
@@ -44,6 +46,7 @@ import it.unimi.di.law.bubing.util.Link;
 import it.unimi.di.law.bubing.util.URLRespectsRobots;
 import it.unimi.di.law.warc.filters.Filter;
 import it.unimi.di.law.warc.records.HttpResponseWarcRecord;
+import it.unimi.di.law.warc.records.WarcHeader;
 import it.unimi.dsi.Util;
 import it.unimi.dsi.fastutil.bytes.ByteArrayList;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -356,15 +359,23 @@ public class ParsingThread extends Thread {
 										parserFound = true;
 										try {
 											digest = parser.parse(fetchData.uri(), fetchData.response(), linkReceiver);
+											final Object result = parser.result();
 											// Spam detection (NOTE: skipped if the parse() method throws an exception)
 											if (rc.spamDetector != null && (visitState.termCountUpdates < rc.spamDetectionThreshold || rc.spamDetectionPeriodicity != Integer.MAX_VALUE)) {
-												final Object result = parser.result();
 												if (result instanceof SpamTextProcessor.TermCount) visitState.updateTermCount((SpamTextProcessor.TermCount)result);
 												if ((visitState.termCountUpdates - rc.spamDetectionThreshold) % rc.spamDetectionPeriodicity == 0) {
 													visitState.spammicity = (float)((SpamDetector<Short2ShortMap>)rc.spamDetector).estimate(visitState.termCount);
 													LOGGER.info("Spammicity for " + visitState + ": " + visitState.spammicity + " (" + visitState.termCountUpdates + " updates)");
 												}
 											}
+											if (result instanceof NNetLanguageIdentifierWrapper.Result) {
+												NNetLanguageIdentifierWrapper.Result language = (NNetLanguageIdentifierWrapper.Result)result;
+												if ((language).isReliable) {
+													if (LOGGER.isDebugEnabled()) LOGGER.debug("Language of page " + fetchData.uri()+ " is: "+language.language);
+													fetchData.additionalInformation.put(LanguageTextProcessor.IDENTIFIED_LANGUAGE, language.language);
+												}
+											}
+
 										} catch(final BufferOverflowException e) {
 											LOGGER.warn("Buffer overflow during parsing of " + url + " with " + parser);
 										} catch(final IOException e) {
@@ -400,8 +411,14 @@ public class ParsingThread extends Thread {
 
 					final boolean isNotDuplicate = streamLength == 0 || frontier.digests.addHash(digest); // Essentially thread-safe; we do not consider zero-content pages as duplicates
 					if (LOGGER.isTraceEnabled()) LOGGER.trace("Decided that for {} isNotDuplicate={}", url, Boolean.valueOf(isNotDuplicate));
-					if (isNotDuplicate && (! rc.applyFollowFilterAfterParsing || rc.followFilter.apply(fetchData))) for(final URI u: linkReceiver) frontierLinkReceiver.enqueue(u);
-					else fetchData.isDuplicate(true);
+					if (isNotDuplicate) {
+						if (! rc.applyFollowFilterAfterParsing || rc.followFilter.apply(fetchData)) {
+							for(final URI u: linkReceiver) frontierLinkReceiver.enqueue(u);
+						}
+					}
+					else {
+						fetchData.isDuplicate(true);
+					}
 
 					// ALERT: store exceptions should cause shutdown.
 					final String result;
@@ -433,7 +450,10 @@ public class ParsingThread extends Thread {
 							frontier.duplicates.incrementAndGet();
 							result = "duplicate";
 						}
-						store.store(fetchData.uri(), fetchData.response(), ! isNotDuplicate, digest, guessedCharset);
+						if (visitState.workbenchEntry != null) {
+							fetchData.additionalInformation.put(WarcHeader.Name.WARC_IP_ADDRESS.toString(), it.unimi.di.law.bubing.util.Util.ipAddrToString(visitState.workbenchEntry.ipAddress));
+						}
+						store.store(fetchData.uri(), fetchData.response(), ! isNotDuplicate, digest, guessedCharset, fetchData.additionalInformation);
 					}
 					else result = "not stored";
 
