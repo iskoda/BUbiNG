@@ -1,5 +1,6 @@
 package it.unimi.di.law.bubing.frontier;
 
+import cz.vutbr.fit.knot.NNetLanguageIdentifierWrapper;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.BufferOverflowException;
@@ -9,6 +10,7 @@ import java.util.concurrent.locks.Lock;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.http.Header;
+import org.apache.http.HttpHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import it.unimi.di.law.bubing.RuntimeConfiguration;
 import it.unimi.di.law.bubing.parser.HTMLParser;
+import it.unimi.di.law.bubing.parser.LanguageTextProcessor;
 import it.unimi.di.law.bubing.parser.Parser;
 import it.unimi.di.law.bubing.parser.Parser.LinkReceiver;
 import it.unimi.di.law.bubing.parser.SpamTextProcessor;
@@ -44,6 +47,7 @@ import it.unimi.di.law.bubing.util.Link;
 import it.unimi.di.law.bubing.util.URLRespectsRobots;
 import it.unimi.di.law.warc.filters.Filter;
 import it.unimi.di.law.warc.records.HttpResponseWarcRecord;
+import it.unimi.di.law.warc.records.WarcHeader;
 import it.unimi.dsi.Util;
 import it.unimi.dsi.fastutil.bytes.ByteArrayList;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -151,7 +155,7 @@ public class ParsingThread extends Thread {
 		 * @param schemeAuthority the scheme+authority of the page to be parsed.
 		 * @param robotsFilter the robots filter of the (authority of the) page to be parsed.
 		 */
-		public void init(URI uri, byte[] schemeAuthority, char[][] robotsFilter) {
+		public void init(final URI uri, final byte[] schemeAuthority, final char[][] robotsFilter) {
 			scheduledLinks = outlinks = 0;
 			this.uri = uri;
 			this.schemeAuthority = schemeAuthority;
@@ -180,6 +184,7 @@ public class ParsingThread extends Thread {
 		 */
 		public void enqueue(final URI url) {
 			if (ASSERTS) assert url != null;
+			if (LOGGER.isDebugEnabled()) LOGGER.debug("Analyzing " + url + " for enqueuing");
 			outlinks++;
 			if (! scheduleFilter.apply(new Link(uri, url))) {
 				if (LOGGER.isDebugEnabled()) LOGGER.debug("I'm not scheduling URL " + url + ": not accepted by scheduleFilter");
@@ -209,6 +214,7 @@ public class ParsingThread extends Thread {
 			}
 
 			try {
+				if (LOGGER.isDebugEnabled()) LOGGER.debug("I'm scheduling URL " + url);
 				BURL.toByteArrayList(url, byteList);
 				frontier.enqueue(byteList);
 				scheduledLinks++;
@@ -347,46 +353,62 @@ public class ParsingThread extends Thread {
 					frontierLinkReceiver.init(fetchData.uri(), visitState.schemeAuthority, visitState.robotsFilter);
 					final long streamLength = fetchData.response().getEntity().getContentLength();
 
-					if (streamLength != 0) { // We don't parse zero-length streams
-						try {
-							if (rc.parseFilter.apply(fetchData)) {
-								boolean parserFound = false;
-								for (final Parser<?> parser: parsers)
-									if (parser.apply(fetchData)) {
-										parserFound = true;
-										try {
-											digest = parser.parse(fetchData.uri(), fetchData.response(), linkReceiver);
-											// Spam detection (NOTE: skipped if the parse() method throws an exception)
-											if (rc.spamDetector != null && (visitState.termCountUpdates < rc.spamDetectionThreshold || rc.spamDetectionPeriodicity != Integer.MAX_VALUE)) {
-												final Object result = parser.result();
-												if (result instanceof SpamTextProcessor.TermCount) visitState.updateTermCount((SpamTextProcessor.TermCount)result);
-												if ((visitState.termCountUpdates - rc.spamDetectionThreshold) % rc.spamDetectionPeriodicity == 0) {
-													visitState.spammicity = (float)((SpamDetector<Short2ShortMap>)rc.spamDetector).estimate(visitState.termCount);
-													LOGGER.info("Spammicity for " + visitState + ": " + visitState.spammicity + " (" + visitState.termCountUpdates + " updates)");
-												}
-											}
-										} catch(final BufferOverflowException e) {
-											LOGGER.warn("Buffer overflow during parsing of " + url + " with " + parser);
-										} catch(final IOException e) {
-											LOGGER.warn("An exception occurred while parsing " + url + " with " + parser, e);
-										}
-										guessedCharset = parser.guessedCharset();
-										break;
-									}
-								if (!parserFound) LOGGER.info("I'm not parsing page " + url + " because I could not find a suitable parser");
+					final Header locationHeader = fetchData.response().getFirstHeader(HttpHeaders.LOCATION);
+					if (locationHeader != null) {
+						final URI location = BURL.parse(locationHeader.getValue());
+						if (location != null) {
+							// This shouldn't happen by standard, but people unfortunately does it.
+							if (! location.isAbsolute() && LOGGER.isDebugEnabled()) LOGGER.debug("Found relative header location URL: \"{}\"", location);
+							linkReceiver.location(fetchData.uri().resolve(location));
+						}
+					}
 
-								frontier.outdegree.add(linkReceiver.size());
-								final String currentHost = url.getHost();
-								int currentOutHostDegree = 0;
-								for(final URI u: linkReceiver) if(! currentHost.equals(u.getHost())) currentOutHostDegree++;
-								frontier.externalOutdegree.add(currentOutHostDegree);
-							}
-							else if (LOGGER.isDebugEnabled()) LOGGER.debug("I'm not parsing page " + url);
+					try {
+						if (rc.parseFilter.apply(fetchData)) {
+							boolean parserFound = false;
+							for (final Parser<?> parser: parsers)
+								if (parser.apply(fetchData)) {
+									parserFound = true;
+									try {
+										digest = parser.parse(fetchData.uri(), fetchData.response(), linkReceiver);
+										final Object result = parser.result();
+										// Spam detection (NOTE: skipped if the parse() method throws an exception)
+										if (rc.spamDetector != null && (visitState.termCountUpdates < rc.spamDetectionThreshold || rc.spamDetectionPeriodicity != Integer.MAX_VALUE)) {
+											if (result instanceof SpamTextProcessor.TermCount) visitState.updateTermCount((SpamTextProcessor.TermCount)result);
+											if ((visitState.termCountUpdates - rc.spamDetectionThreshold) % rc.spamDetectionPeriodicity == 0) {
+												visitState.spammicity = (float)((SpamDetector<Short2ShortMap>)rc.spamDetector).estimate(visitState.termCount);
+												LOGGER.info("Spammicity for " + visitState + ": " + visitState.spammicity + " (" + visitState.termCountUpdates + " updates)");
+											}
+										}
+										if (result instanceof NNetLanguageIdentifierWrapper.Result) {
+											NNetLanguageIdentifierWrapper.Result language = (NNetLanguageIdentifierWrapper.Result)result;
+											if ((language).isReliable) {
+												if (LOGGER.isDebugEnabled()) LOGGER.debug("Language of page " + fetchData.uri()+ " is: "+language.language);
+												fetchData.additionalInformation.put(LanguageTextProcessor.IDENTIFIED_LANGUAGE, language.language);
+											}
+										}
+
+									} catch(final BufferOverflowException e) {
+										LOGGER.warn("Buffer overflow during parsing of " + url + " with " + parser);
+									} catch(final IOException e) {
+										LOGGER.warn("An exception occurred while parsing " + url + " with " + parser, e);
+									}
+									guessedCharset = parser.guessedCharset();
+									break;
+								}
+							if (!parserFound) LOGGER.info("I'm not parsing page " + url + " because I could not find a suitable parser");
+
+							frontier.outdegree.add(linkReceiver.size());
+							final String currentHost = url.getHost();
+							int currentOutHostDegree = 0;
+							for(final URI u: linkReceiver) if(! currentHost.equals(u.getHost())) currentOutHostDegree++;
+							frontier.externalOutdegree.add(currentOutHostDegree);
 						}
-						catch(final Exception e) {
-							// This mainly catches Jericho and network problems
-							LOGGER.warn("Exception during parsing of " + url, e);
-						}
+						else if (LOGGER.isDebugEnabled()) LOGGER.debug("I'm not parsing page " + url);
+					}
+					catch(final Exception e) {
+						// This mainly catches Jericho and network problems
+						LOGGER.warn("Exception during parsing of " + url, e);
 					}
 
 					final boolean mustBeStored = rc.storeFilter.apply(fetchData);
@@ -400,8 +422,14 @@ public class ParsingThread extends Thread {
 
 					final boolean isNotDuplicate = streamLength == 0 || frontier.digests.addHash(digest); // Essentially thread-safe; we do not consider zero-content pages as duplicates
 					if (LOGGER.isTraceEnabled()) LOGGER.trace("Decided that for {} isNotDuplicate={}", url, Boolean.valueOf(isNotDuplicate));
-					if (isNotDuplicate && (! rc.applyFollowFilterAfterParsing || rc.followFilter.apply(fetchData))) for(final URI u: linkReceiver) frontierLinkReceiver.enqueue(u);
-					else fetchData.isDuplicate(true);
+					if (isNotDuplicate) {
+						if (! rc.applyFollowFilterAfterParsing || rc.followFilter.apply(fetchData)) {
+							for(final URI u: linkReceiver) frontierLinkReceiver.enqueue(u);
+						}
+					}
+					else {
+						fetchData.isDuplicate(true);
+					}
 
 					// ALERT: store exceptions should cause shutdown.
 					final String result;
@@ -433,7 +461,10 @@ public class ParsingThread extends Thread {
 							frontier.duplicates.incrementAndGet();
 							result = "duplicate";
 						}
-						store.store(fetchData.uri(), fetchData.response(), ! isNotDuplicate, digest, guessedCharset);
+						if (visitState.workbenchEntry != null) {
+							fetchData.additionalInformation.put(WarcHeader.Name.WARC_IP_ADDRESS.toString(), it.unimi.di.law.bubing.util.Util.ipAddrToString(visitState.workbenchEntry.ipAddress));
+						}
+						store.store(fetchData.uri(), fetchData.response(), ! isNotDuplicate, digest, guessedCharset, fetchData.additionalInformation);
 					}
 					else result = "not stored";
 

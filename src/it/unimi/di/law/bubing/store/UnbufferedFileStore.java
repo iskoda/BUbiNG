@@ -14,6 +14,8 @@ package it.unimi.di.law.bubing.store;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * NOTICE: 09/2018 - Added additional information to store
  */
 
 import it.unimi.di.law.bubing.RuntimeConfiguration;
@@ -28,9 +30,11 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Map;
 
 import org.apache.commons.codec.binary.Hex;
 import org.apache.http.HttpResponse;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.message.HeaderGroup;
 
 //RELEASE-STATUS: DIST
@@ -59,13 +63,20 @@ public class UnbufferedFileStore implements Closeable, Store {
 	}
 
 	@Override
-	public synchronized void store(final URI uri, final HttpResponse response, boolean isDuplicate, final byte[] contentDigest, final String guessedCharset) throws IOException, InterruptedException {
+	public synchronized void store(final URI uri, final HttpResponse response, boolean isDuplicate, final byte[] contentDigest, final String guessedCharset, final Map<String, String> additionalInformation) throws IOException, InterruptedException {
 		if (contentDigest == null) throw new NullPointerException("Content digest is null");
 		final HttpResponseWarcRecord record = new HttpResponseWarcRecord(uri, response);
 		HeaderGroup warcHeaders = record.getWarcHeaders();
 		warcHeaders.updateHeader(new WarcHeader(WarcHeader.Name.WARC_PAYLOAD_DIGEST, "bubing:" + Hex.encodeHexString(contentDigest)));
 		if (guessedCharset != null) warcHeaders.updateHeader(new WarcHeader(WarcHeader.Name.BUBING_GUESSED_CHARSET, guessedCharset));
 		if (isDuplicate) warcHeaders.updateHeader(new WarcHeader(WarcHeader.Name.BUBING_IS_DUPLICATE, "true"));
+
+		for (Map.Entry<String, String> entry : additionalInformation.entrySet()) {
+			String key = entry.getKey();
+			String value = entry.getValue();
+			warcHeaders.updateHeader(new BasicHeader(key, value));
+		}
+
 		writer.write(record);
 	}
 

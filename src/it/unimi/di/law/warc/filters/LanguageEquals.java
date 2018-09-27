@@ -15,18 +15,12 @@ package it.unimi.di.law.warc.filters;
  */
 
 import com.google.common.net.HttpHeaders;
-import cz.vutbr.fit.knot.NNetLanguageIdentifierWrapper;
-
 import it.unimi.di.law.bubing.parser.LanguageTextProcessor;
+import it.unimi.di.law.bubing.util.FetchData;
 import org.apache.http.Header;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-/** A filter accepting only URIResponse whose content is in a certain language. */
-public class LanguageEquals extends AbstractFilter<URIResponse> {
-	private static final Logger LOGGER = LoggerFactory.getLogger(LanguageEquals.class);
-
+/** A filter accepting only FetchData whose content is in a certain language. */
+public class LanguageEquals extends AbstractFilter<FetchData> {
 	private final String language;
 
 	public LanguageEquals(final String language) {
@@ -34,17 +28,14 @@ public class LanguageEquals extends AbstractFilter<URIResponse> {
 	}
 
 	@Override
-	public boolean apply(final URIResponse response) {
+	public boolean apply(final FetchData response) {
 		final Header header = response.response().getFirstHeader(HttpHeaders.CONTENT_LANGUAGE);
-		if (header != null && header.getValue().startsWith(this.language)) {
-                    return true;
-                }
-                
-		final NNetLanguageIdentifierWrapper.Result lang = LanguageTextProcessor.result(response.uri());
-		if (lang == null || lang.isReliable == false) return false;
+		if (header != null && header.getValue().startsWith(this.language)) return true;
 
-		if (LOGGER.isDebugEnabled()) LOGGER.debug("Language of page " + response.uri() + " is " + lang.language);
-		return this.language.equals(lang.language);
+		final String identifiedLanguage = response.additionalInformation.get(LanguageTextProcessor.IDENTIFIED_LANGUAGE);
+		if (identifiedLanguage == null) return false;
+
+		return this.language.equals(identifiedLanguage);
 	}
 
 	public static LanguageEquals valueOf(final String spec) {
@@ -57,7 +48,7 @@ public class LanguageEquals extends AbstractFilter<URIResponse> {
 	}
 
 	@Override
-	public Filter<URIResponse> copy() {
+	public Filter<FetchData> copy() {
 		return this;
 	}
 }
