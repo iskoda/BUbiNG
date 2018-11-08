@@ -1,0 +1,54 @@
+package it.unimi.di.law.warc.processors;
+
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// RELEASE-STATUS: DIST
+
+import cz.vutbr.fit.knot.NNetLanguageIdentifierWrapper;
+import it.unimi.di.law.warc.processors.ParallelFilteredProcessorRunner.Writer;
+import it.unimi.di.law.warc.records.WarcHeader;
+import it.unimi.di.law.warc.records.WarcRecord;
+
+import java.io.IOException;
+import java.io.PrintStream;
+import java.net.URI;
+import java.text.SimpleDateFormat;
+import org.apache.http.Header;
+
+public class DateURLDomainIPLanguageWriter implements Writer<WarcRecord> {
+
+	SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd HH:mm:ss");
+
+	@Override
+	public void write(final WarcRecord warcRecord, final long storePosition, final PrintStream out) throws IOException {
+		final URI url = warcRecord.getWarcTargetURI();
+		final Header lang = warcRecord.getWarcHeader(WarcHeader.Name.BUBING_DETECTED_LANGUAGE);
+		final Header ipAddress = warcRecord.getWarcHeader(WarcHeader.Name.WARC_IP_ADDRESS);
+
+		out.print(ft.format(warcRecord.getWarcDate()));
+		out.write('\t');
+		out.print(url);
+		out.print('\t');
+		out.print(url.getHost());
+		out.print('\t');
+		out.print(ipAddress == null ? "" : ipAddress.getValue());
+		out.print('\t');
+		out.print(lang == null ? NNetLanguageIdentifierWrapper.getUnknown() : lang.getValue());
+		out.write('\n');
+	}
+
+	@Override
+	public void close() throws IOException {}
+}

@@ -42,13 +42,8 @@ public class LanguageTextProcessorTest {
 		"<p>Epaissies perruches tarderait seulement fourneaux age ete eux moi cauchemar.</p>\n" +                
 		"</body>\n" +
 		"</html>";
-
-        
-	private LanguageTextProcessor processor;
     
-	public LanguageTextProcessorTest() {
-		this.processor = new LanguageTextProcessor();
-	}
+	public LanguageTextProcessorTest() {}
 
 	/**
 	 * Test of append method, of class LanguageTextProcessor.
@@ -56,27 +51,29 @@ public class LanguageTextProcessorTest {
 	@Test
 	public void testAppend() throws Exception {
 		URI url = new URI("http://exmaple.com");
-		this.processor.init(url);
-		this.processor.append("Dissuade ecstatic and properly saw entirely sir why laughter endeavor.");
-		this.processor.append("In on my jointure horrible margaret suitable he followed speedily.");
-		this.processor.append("Indeed vanity excuse or mr lovers of on.");
-		assertNotNull(LanguageTextProcessor.result(url));
-		assertEquals(LanguageTextProcessor.result(url).language, "en");
+		LanguageTextProcessor processor = new LanguageTextProcessor();
+		processor.init(url);
+		processor.append("Dissuade ecstatic and properly saw entirely sir why laughter endeavor.");
+		processor.append("In on my jointure horrible margaret suitable he followed speedily.");
+		processor.append("Indeed vanity excuse or mr lovers of on.");
+		assertNotNull(processor.result());
+		assertEquals(processor.result().language, "en");
 	}
 
 	@Test
 	public void testDocuments() throws NoSuchAlgorithmException, IOException, URISyntaxException {
 		HTMLParser<?> parser = new HTMLParser<>(BinaryParser.forName("MD5"), new LanguageTextProcessor(), false);
-
+		LanguageTextProcessor processor = new LanguageTextProcessor();
+		
 		URI uri01 = new URI("http://exmaple.com/doc01");
 		URI uri02 = new URI("http://exmaple.com/doc02");
 		parser.parse(uri01, new StringHttpMessages.HttpResponse(doc01), Parser.NULL_LINK_RECEIVER);
 
-		assertNotNull(LanguageTextProcessor.result(uri01));
-		assertEquals(LanguageTextProcessor.result(uri01).language, "en");
+		assertNotNull(processor.result());
+		assertEquals(processor.result().language, "en");
 
 		parser.parse(uri02, new StringHttpMessages.HttpResponse(doc02), Parser.NULL_LINK_RECEIVER);
-		assertNotNull(LanguageTextProcessor.result(uri02));
-		assertEquals(LanguageTextProcessor.result(uri02).language, "fr");
+		assertNotNull(processor.result());
+		assertEquals(processor.result().language, "fr");
 	}
 }

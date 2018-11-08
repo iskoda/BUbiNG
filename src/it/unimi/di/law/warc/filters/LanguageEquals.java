@@ -17,6 +17,7 @@ package it.unimi.di.law.warc.filters;
 import com.google.common.net.HttpHeaders;
 import it.unimi.di.law.bubing.parser.LanguageTextProcessor;
 import it.unimi.di.law.bubing.util.FetchData;
+import it.unimi.di.law.warc.records.WarcHeader;
 import org.apache.http.Header;
 
 /** A filter accepting only FetchData whose content is in a certain language. */
@@ -32,7 +33,8 @@ public class LanguageEquals extends AbstractFilter<FetchData> {
 		final Header header = response.response().getFirstHeader(HttpHeaders.CONTENT_LANGUAGE);
 		if (header != null && header.getValue().startsWith(this.language)) return true;
 
-		final String identifiedLanguage = response.additionalInformation.get(LanguageTextProcessor.IDENTIFIED_LANGUAGE);
+		final String identifiedLanguage;
+		identifiedLanguage = response.additionalInformation.get(WarcHeader.Name.BUBING_DETECTED_LANGUAGE.toString());
 		if (identifiedLanguage == null) return false;
 
 		return this.language.equals(identifiedLanguage);
