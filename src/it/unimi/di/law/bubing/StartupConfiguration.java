@@ -44,6 +44,10 @@ import com.martiansoftware.jsap.stringparsers.LongSizeStringParser;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * FILE CHANGED BY KAREL ONDŘEJ 
+ * NOTICE: 08/2018 - Added flag to apply follow filter after parsing.
+ *                 - Configurable supported SSL protocols.
  */
 
 import it.unimi.di.law.bubing.frontier.DNSThread;
@@ -188,12 +192,12 @@ public class StartupConfiguration {
 	public Filter<URIResponse> parseFilter;
 
 	/** A filter that will be applied to all parsed resources to decide whether to follow their links. */
-	@FilterSpecification(type = URIResponse.class)
-	public Filter<URIResponse> followFilter;
+	@FilterSpecification(type = FetchData.class)
+	public Filter<FetchData> followFilter;
 
 	/** A filter that will be applied to all fetched resources to decide whether to store them. */
-	@FilterSpecification(type = URIResponse.class)
-	public Filter<URIResponse> storeFilter;
+	@FilterSpecification(type = FetchData.class)
+	public Filter<FetchData> storeFilter;
 
 	/** A filter that will be applied to all fetched resources to decide whether to revisit them. */
 	@FilterSpecification(type = URIResponse.class)
@@ -292,6 +296,11 @@ public class StartupConfiguration {
 	/** Whether to accept all SSL certificates, or self-signed only. */
 	@OptionalSpecification(value="true")
 	public boolean acceptAllCertificates;
+
+	/** Supported SSL protocols. */
+	@ManyValuesSpecification
+	@OptionalSpecification(value="TLSv1.2,TLSv1.1,TLSv1,SSLv3,SSLv2Hello")
+	public String[] supportedSSLProtocols;
 
 	/** A root directory from which the remainig one will be stemmed, if
 	 * they are relative. Note that this directory can be preexisting, and can be
@@ -392,6 +401,10 @@ public class StartupConfiguration {
 	@OptionalSpecification(value="2147483647")
 	public int spamDetectionPeriodicity;
 
+	/** Apply follow filter after parsing. */
+	@OptionalSpecification(value="false")
+	public boolean applyFollowFilterAfterParsing;
+
 	/** Use KNOT deduplication.
 	 */
 	@OptionalSpecification(value="false")
@@ -414,14 +427,15 @@ public class StartupConfiguration {
 
 	/** Re-visit strategy.
 	 */
-        @OptionalSpecification(value="UniformRevisitScheduler()")
+	@OptionalSpecification(value="UniformRevisitScheduler()")
 	public String revisitScheduler;
 
 	/** Period to check if the link should be re-visited.
 	 */
-        @OptionalSpecification(value="15m")
-        @TimeSpecification
-	public long revisitCheckPeriodicity;   
+	@OptionalSpecification(value="15m")
+	@TimeSpecification
+	public long revisitCheckPeriodicity;
+
 	/* Checks */
 
 	@SuppressWarnings("unused")

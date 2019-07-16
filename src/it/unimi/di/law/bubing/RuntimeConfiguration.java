@@ -45,7 +45,10 @@ import com.google.common.primitives.Ints;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * FILE CHANGED BY KAREL ONDŘEJ (2018-04-04)
+ * FILE CHANGED BY KAREL ONDŘEJ 
+ * NOTICE: 04/2018 - Incremental crawling
+ *         08/2018 - Added flag to apply follow filter after parsing.
+ *                 - Configurable supported SSL protocols
  */
 
 
@@ -55,6 +58,7 @@ import it.unimi.di.law.bubing.parser.Parser;
 import it.unimi.di.law.bubing.spam.SpamDetector;
 import it.unimi.di.law.bubing.store.Store;
 import it.unimi.di.law.bubing.util.BURL;
+import it.unimi.di.law.bubing.util.FetchData;
 import it.unimi.di.law.bubing.util.Link;
 import cz.vutbr.fit.knot.KnotDedup;
 import it.unimi.di.law.warc.filters.Filter;
@@ -67,6 +71,7 @@ import it.unimi.dsi.io.LineIterator;
 import it.unimi.dsi.lang.FlyweightPrototype;
 import it.unimi.dsi.lang.MutableString;
 import it.unimi.dsi.lang.ObjectParser;
+import java.util.Arrays;
 
 //RELEASE-STATUS: DIST
 
@@ -122,10 +127,10 @@ public class RuntimeConfiguration {
 	public volatile Filter<URIResponse> parseFilter;
 
 	/** @see StartupConfiguration#followFilter */
-	public volatile Filter<URIResponse> followFilter;
+	public volatile Filter<FetchData> followFilter;
 
 	/** @see StartupConfiguration#storeFilter */
-	public volatile Filter<URIResponse> storeFilter;
+	public volatile Filter<FetchData> storeFilter;
 
 	/** @see StartupConfiguration#revisitFilter */
 	public volatile Filter<URIResponse> revisitFilter;
@@ -199,6 +204,9 @@ public class RuntimeConfiguration {
 	/** @see StartupConfiguration#acceptAllCertificates */
 	public volatile boolean acceptAllCertificates;
 
+	/** @see StartupConfiguration#supportedSSLProtocols */
+	public String[] supportedSSLProtocols;
+
 	/** @see StartupConfiguration#rootDir */
 	public final File rootDir;
 
@@ -264,6 +272,9 @@ public class RuntimeConfiguration {
 
 	/** @see StartupConfiguration#spamDetectionPeriodicity */
 	public final int spamDetectionPeriodicity;
+
+	/** @see StartupConfiguration#applyFollowFilterAfterParsing */
+	public final boolean applyFollowFilterAfterParsing;
 
 	/** The parser, instantiated. Parsers used by {@link ParsingThread} instances are obtained by {@linkplain FlyweightPrototype#copy() copying this parsers}. */
 	public final ArrayList<Parser<?>> parsers;
@@ -432,6 +443,11 @@ public class RuntimeConfiguration {
 			spamDetectionThreshold = startupConfiguration.spamDetectionThreshold;
 			spamDetectionPeriodicity = startupConfiguration.spamDetectionPeriodicity;
 
+			/* KnoT */
+			applyFollowFilterAfterParsing = startupConfiguration.applyFollowFilterAfterParsing;
+			supportedSSLProtocols = startupConfiguration.supportedSSLProtocols;  
+			LOGGER.info("Supported SSL protocols: " + Arrays.toString(supportedSSLProtocols));
+			/* End KnoT */
 			final List<Iterator<URI>> seedSequence = new ArrayList<>();
 			for(final String spec : startupConfiguration.seed) {
 				if (spec.length() == 0) continue; // Skip empty lines

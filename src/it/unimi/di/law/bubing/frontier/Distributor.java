@@ -15,12 +15,15 @@ package it.unimi.di.law.bubing.frontier;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * FILE CHANGED BY KAREL ONDŘEJ (2018-04-04)
+ * FILE CHANGED BY KAREL ONDŘEJ
+ * NOTICE: 04/2018 - Incremental crawling 
+ *         07/2018 - Added stats
  */
 
 import it.unimi.di.law.bubing.util.BURL;
 import it.unimi.dsi.Util;
 import it.unimi.dsi.fastutil.bytes.ByteArrayList;
+import it.unimi.dsi.stat.SummaryStats;
 
 import java.util.concurrent.TimeUnit;
 
@@ -106,6 +109,7 @@ public final class Distributor extends Thread {
 			long fullWorkbenchSleepTime = 0, largeFrontSleepTime = 0, noReadyURLsSleepTime = 0;
 			long movedFromSieveToVirtualizer = 0, movedFromSieveToOverflow = 0, movedFromSieveToWorkbench = 0, deletedFromSieve = 0;
 			/* During the following loop, you should set round to -1 every time something useful is done (e.g., a URL is read from the sieve, or from the virtual queues etc.) */
+			ByteArrayList byteList = new ByteArrayList();
 			for(int round = 0; ; round++) {
 				frontier.rc.ensureNotPaused();
 				if (frontier.rc.stopping) break;
@@ -121,12 +125,23 @@ public final class Distributor extends Thread {
 					frontier.virtualizer.enqueuePathQueryState(visitState, pathQueryToRevisit);
 				}
 
+				/* Redistribute the URL from the virtualizer workbench */
+				VisitState nonLocal = frontier.nonLocalVisitStates.poll();
+				if (nonLocal != null) {
+					round = -1;
+					final int pathQueryLimit = (int)frontier.virtualizer.count(nonLocal);
+					if (pathQueryLimit != 0) {
+						final int dequeuedURLs = frontier.virtualizer.dequeuePathQueries(nonLocal, pathQueryLimit);
+						movedFromQueues += dequeuedURLs;
+					}
+					frontier.submitVisitState(nonLocal);
+				}
 				/* The basic logic of workbench updates is that if the front is large enough, we don't do anything.
 				 * In this way we both automatically batch disk reads and reduce core memory usage. The required
 				 * front size is adaptively set by FetchingThread instances when they detect that the
 				 * visit states in the todo list plus workbench.size() is below the current required size
 				 * (i.e., we are counting IPs). */
-				if (! workbenchIsFull) {
+				else if (! workbenchIsFull) {
 					synchronized(frontier.sieve) {} // We stop here if we are flushing.
 
 					VisitState visitState = frontier.refill.poll();
@@ -182,22 +197,23 @@ public final class Distributor extends Thread {
 									movedFromSieveToWorkbench++;
 								}
 								else {
-									if (frontier.virtualizer.isReadyVisitState(visitState)) {
-										// Safe: there are URLs on disk, and this fact cannot change concurrently.
-										movedFromSieveToVirtualizer++;
-										frontier.virtualizer.enqueuePathQueryState(visitState, new PathQueryState(visitState, pathQuery));
-									}
-									else if (visitState.size() < visitState.pathQueryLimit() && visitState.workbenchEntry != null && visitState.lastExceptionClass == null) {
-										/* Safe: we are enqueueing to a sane (modulo race conditions)
-										 * visit state, which will be necessarily go through the DoneThread later. */
-										visitState.checkRobots(now);
-										visitState.enqueuePathQuery(new PathQueryState(visitState, pathQuery));
-										movedFromSieveToWorkbench++;
-									}
-									else { // visitState.urlsOnDisk == 0
-										movedFromSieveToVirtualizer++;
-										//frontier.virtualizer.enqueueURL( visitState, url );
-										frontier.virtualizer.enqueuePathQueryState(visitState, new PathQueryState(visitState, pathQuery));
+									if (! frontier.enqueueURLWithIP(url, visitState)) {
+										if (frontier.virtualizer.isReadyVisitState(visitState)) {
+											// Safe: there are URLs on disk, and this fact cannot change concurrently.
+											movedFromSieveToVirtualizer++;
+											frontier.virtualizer.enqueuePathQueryState(visitState, new PathQueryState(visitState, pathQuery));
+										}
+										else if (visitState.size() < visitState.pathQueryLimit() && visitState.workbenchEntry != null && visitState.lastExceptionClass == null) {
+											/* Safe: we are enqueueing to a sane (modulo race conditions)
+											 * visit state, which will be necessarily go through the DoneThread later. */
+											visitState.checkRobots(now);
+											visitState.enqueuePathQuery(new PathQueryState(visitState, pathQuery));
+											movedFromSieveToWorkbench++;
+										}
+										else { // visitState.urlsOnDisk == 0
+											movedFromSieveToVirtualizer++;
+											frontier.virtualizer.enqueuePathQueryState(visitState, new PathQueryState(visitState, pathQuery));
+										}
 									}
 								}
 							}
@@ -219,6 +235,41 @@ public final class Distributor extends Thread {
 					noReadyURLsSleepTime = 0;
 					statsThread.emit();
 					lastLowCostStat = now;
+
+					SummaryStats entrySummaryStats = frontier.getStatsThread().entrySummaryStats;
+					long time = System.currentTimeMillis();
+					LOGGER.info("Agent stats: "+
+						time+";"+
+						frontier.workbench.approximatedSize()+";"+                  // IPOnWorkbench
+						frontier.pathQueriesInQueues.get()+";"+                     // URLsInQueues
+						(100.0 * frontier.weightOfpathQueriesInQueues.get() / frontier.rc.workbenchMaxByteSize)+";"+ // URLsInQueuesPercentage
+						frontier.getStatsThread().brokenPathQueryCount+";"+         // broken
+						frontier.brokenVisitStates.get()+";"+                       // brokenVisitStates
+						frontier.getStatsThread().brokenVisitStatesOnWorkbench+";"+ // broeknVisitStatesOnWorkbench
+						frontier.transferredBytes.get()+";"+                        // bytes
+						(100.0 * frontier.duplicates.get() / (1 + frontier.archetypes()))+";"+ // duplicatesPercentage
+						frontier.duplicates.get()+";"+                              // duplicates
+						(entrySummaryStats != null ? entrySummaryStats.mean() : "0.0")+";"+ // entryAverage
+						(entrySummaryStats != null ? entrySummaryStats.max() : "0.0")+";"+ // entryMax
+						(entrySummaryStats != null ? entrySummaryStats.min() : "0.0")+";"+ // entryMin
+						(entrySummaryStats != null ? entrySummaryStats.variance() : "0.0")+";"+ // entryVariance
+						(int)frontier.results.size()+";"+                           // readyToParse
+						frontier.readyURLs.size64()+";"+                            // readyURLs
+						frontier.numberOfReceivedURLs.get()+";"+                    // receivedURLs
+						(frontier.fetchedResources.get() + frontier.fetchedRobots.get())+";"+ // requests
+						frontier.requiredFrontSize.get()+";"+                       // requiredFrontSize
+						frontier.getStatsThread().resolvedVisitStates+";"+          // resolvedVisitStates
+						frontier.fetchedResources.get()+";"+                        // resources
+						(frontier.archetypes() + frontier.duplicates.get())+";"+      // storeSize
+						frontier.todo.size()+";"+                                   // toDoSize
+						frontier.unknownHosts.size()+";"+                           // unknownHosts
+						frontier.getStatsThread().unresolved+";"+                   // unresolved
+						frontier.getStatsThread().getVisitStates()+";"+             // visitStates
+						frontier.getStatsThread().getVisitStatesOnDisk()+";"+       // visitStatesOnDisk
+						(entrySummaryStats != null ? (long)entrySummaryStats.sum() : "0")+";"+// visitStatesOnWorkbench
+						frontier.newVisitStates.size()+";"+                         // waitingVisitStates
+						frontier.weightOfpathQueriesInQueues.get()                  // workbenchByteSize
+					);
 
 					frontier.virtualizer.collectIf(.50, .75);
 				}

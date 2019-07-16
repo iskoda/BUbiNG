@@ -44,6 +44,9 @@ import com.martiansoftware.jsap.UnflaggedOption;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * NOTICE: 07/2018 - Add method saveURLs.
+ *         08/2018 - Show broken IP on workbench.
  */
 
 
@@ -53,6 +56,7 @@ import it.unimi.di.law.bubing.frontier.QuickMessageThread;
 import it.unimi.di.law.bubing.store.Store;
 import it.unimi.di.law.bubing.util.BURL;
 import it.unimi.di.law.bubing.util.BubingJob;
+import it.unimi.di.law.bubing.util.FetchData;
 import it.unimi.di.law.bubing.util.Link;
 import it.unimi.di.law.warc.filters.URIResponse;
 import it.unimi.di.law.warc.filters.parser.FilterParser;
@@ -64,6 +68,9 @@ import it.unimi.dsi.jai4j.RemoteJobManager;
 import it.unimi.dsi.jai4j.dropping.DiscardMessagesStrategy;
 import it.unimi.dsi.jai4j.dropping.TimedDroppingThreadFactory;
 import it.unimi.dsi.jai4j.jgroups.JGroupsJobManager;
+import java.io.File;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 
 //RELEASE-STATUS: DIST
 
@@ -165,12 +172,12 @@ public class Agent extends JGroupsJobManager<BubingJob> {
 
 	@Override
 	public byte[] toByteArray(final BubingJob job) throws IllegalArgumentException {
-		return job.url.toByteArray();
+		return BubingJob.toByteArray(job);
 	}
 
 	@Override
 	public BubingJob fromByteArray(byte[] array, int offset) throws IllegalArgumentException {
-		return new BubingJob(ByteArrayList.wrap(Arrays.copyOfRange(array, offset, array.length)));
+		return BubingJob.fromByteArray(array, offset);
 	}
 
 	/** Returns the number of agents currently known to the JAI4J {@link RemoteJobManager}.
@@ -245,6 +252,30 @@ public class Agent extends JGroupsJobManager<BubingJob> {
 		return assignmentStrategy.manager(new BubingJob(ByteArrayList.wrap(BURL.toByteArray(BURL.parse(url))))).toString();
 	}
 
+	@ManagedOperation @Description("Pause this agent and save URLs to file.")
+	public synchronized void saveURLs() throws FileNotFoundException, UnsupportedEncodingException, IOException, InterruptedException {
+		pause();
+		LOGGER.info("Pause and start saving URLs to file..." );
+		frontier.saveURLs(new File(rc.rootDir, "URLsInQueues.csv"));
+
+		try (PrintWriter writer = new PrintWriter(new File(rc.rootDir, "readyURLs.csv"), "UTF-8")) {
+			synchronized(frontier.sieve) {}
+			frontier.sieve.flush();
+                
+			for (long i=frontier.readyURLs.size64(); i!=0; i--) {
+				frontier.readyURLs.dequeue();
+				byte[] url = frontier.readyURLs.buffer().elements();
+				byte[] schemeAndAuthority = BURL.schemeAndAuthorityAsByteArray(url);
+				byte[] pathAndQuery = BURL.pathAndQueryAsByteArray(url);
+				writer.println(BURL.fromNormalizedSchemeAuthorityAndPathQuery(schemeAndAuthority, pathAndQuery) + "\t" +
+					BURL.hostFromSchemeAndAuthority(schemeAndAuthority));
+				frontier.readyURLs.enqueue(url);
+			}
+		}
+		LOGGER.info("... end saving URLs to file and resume.");
+		resume();
+	}
+
 	/* Properties, the same as RuntimeConfiguration: final fields in RuntimeConfiguration are not reported since they can be seen in the file .properties;
 	 * while volatile fields in RuntimeConfiguration can be get and set (except for paused and stopping)
 	 * */
@@ -311,7 +342,7 @@ public class Agent extends JGroupsJobManager<BubingJob> {
 
 	@ManagedAttribute
 	public void setFollowFilter(String spec) throws ParseException {
-		rc.followFilter = new FilterParser<>(URIResponse.class).parse(spec);
+		rc.followFilter = new FilterParser<>(FetchData.class).parse(spec);
 	}
 
 	@ManagedAttribute @Description("Filter that will be applied to all fetched responses to decide whether to follow their links")
@@ -321,7 +352,7 @@ public class Agent extends JGroupsJobManager<BubingJob> {
 
 	@ManagedAttribute
 	public void setStoreFilter(String spec) throws ParseException {
-		rc.storeFilter = new FilterParser<>(URIResponse.class).parse(spec);
+		rc.storeFilter = new FilterParser<>(FetchData.class).parse(spec);
 	}
 
 	@ManagedAttribute @Description("Filter that will be applied to all fetched responses to decide whether to store them")
@@ -661,6 +692,11 @@ public class Agent extends JGroupsJobManager<BubingJob> {
 		return  frontier.getStatsThread().brokenVisitStatesOnWorkbench;
 	}
 
+	@ManagedAttribute @Description("Number of broken entries on the workbench")
+	public long getBrokenIPOnWorkbench() {
+		return  frontier.workbench.broken.get();
+	}
+        
 	@ManagedAttribute @Description("Number of new VisitState instances waiting to be resolved")
 	public int getWaitingVisitStates() {
 		return frontier.newVisitStates.size();
