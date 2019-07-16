@@ -23,8 +23,6 @@ import java.net.URI;
 
 /** An implementation of a {@link Parser.TextProcessor} that identifier language of text. */
 public final class LanguageTextProcessor implements TextProcessor<NNetLanguageIdentifierWrapper.Result> {
-	public static final String IDENTIFIED_LANGUAGE = "BUbiNG-Detected-Language";
-
 	private static final NNetLanguageIdentifierWrapper IDENTIFIER = new NNetLanguageIdentifierWrapper();
 	private StringBuilder textBuilder;
 

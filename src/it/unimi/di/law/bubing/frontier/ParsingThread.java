@@ -35,7 +35,6 @@ import org.slf4j.LoggerFactory;
 
 import it.unimi.di.law.bubing.RuntimeConfiguration;
 import it.unimi.di.law.bubing.parser.HTMLParser;
-import it.unimi.di.law.bubing.parser.LanguageTextProcessor;
 import it.unimi.di.law.bubing.parser.Parser;
 import it.unimi.di.law.bubing.parser.Parser.LinkReceiver;
 import it.unimi.di.law.bubing.parser.SpamTextProcessor;
@@ -384,7 +383,7 @@ public class ParsingThread extends Thread {
 											NNetLanguageIdentifierWrapper.Result language = (NNetLanguageIdentifierWrapper.Result)result;
 											if ((language).isReliable) {
 												if (LOGGER.isDebugEnabled()) LOGGER.debug("Language of page " + fetchData.uri()+ " is: "+language.language);
-												fetchData.additionalInformation.put(LanguageTextProcessor.IDENTIFIED_LANGUAGE, language.language);
+												fetchData.additionalInformation.put(WarcHeader.Name.BUBING_DETECTED_LANGUAGE.toString(), language.language);
 											}
 										}
 

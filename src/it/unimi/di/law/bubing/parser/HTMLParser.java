@@ -515,7 +515,7 @@ public class HTMLParser<T> implements Parser<T> {
 		location = null;
 		metaLocation = null;
 
-		System.err.println(Arrays.toString(httpResponse.getAllHeaders()));
+		// System.err.println(Arrays.toString(httpResponse.getAllHeaders()));
 
 		final Header locationHeader = httpResponse.getFirstHeader(HttpHeaders.LOCATION);
 		if (locationHeader != null) {

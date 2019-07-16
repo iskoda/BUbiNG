@@ -23,6 +23,7 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.Iterables;
 import com.google.common.net.HttpHeaders;
 import it.unimi.di.law.bubing.util.FetchData;
+import it.unimi.di.law.warc.records.WarcHeader;
 import org.apache.http.Header;
 
 /** A filter accepting only URIResponse whose content is in a certain language. */
@@ -46,7 +47,7 @@ public class LanguageEqualsOneOf extends AbstractFilter<FetchData> {
 			}
 		}
 
-		final String lang = response.additionalInformation.get(LanguageTextProcessor.IDENTIFIED_LANGUAGE);
+		final String lang = response.additionalInformation.get(WarcHeader.Name.BUBING_DETECTED_LANGUAGE);
 		if (lang == null) return false;
 
 		for (String language: this.languages) {
