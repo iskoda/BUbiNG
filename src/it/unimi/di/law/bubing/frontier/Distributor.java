@@ -158,7 +158,7 @@ public final class Distributor extends Thread {
 							final int dequeuedURLs = frontier.virtualizer.dequeuePathQueriesState(visitState, pathQueryLimit);
 							movedFromQueues += dequeuedURLs;
 						}
-                                                visitState.refill= false;
+                        visitState.refill= false;
 					}
 					else if (frontIsSmall){
 						// It is necessary to enrich the workbench picking up URLs from the sieve

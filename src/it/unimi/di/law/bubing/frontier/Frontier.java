@@ -703,18 +703,18 @@ public class Frontier implements JobListener<BubingJob>, AbstractSieve.NewFlowRe
 	 * @throws IOException
 	 * @throws InterruptedException 
 	 */
-	public void submitVisitState(final VisitState visitState) throws IOException, InterruptedException {
+	public void submitVisitState(final VisitState visitState) throws IllegalArgumentException, IOException {
 		final ByteArrayList byteList = new ByteArrayList();
 		final ByteArrayList ipAddress = new ByteArrayList(visitState.workbenchEntry.ipAddress.length);
 		ipAddress.addElements(0, visitState.workbenchEntry.ipAddress);
 
 		while(! visitState.isEmpty()) {
 			final byte[] path = visitState.firstPath().pathQuery;
-			final URI url = BURL.fromNormalizedSchemeAuthorityAndPathQuery(visitState.schemeAuthority, path);
 			if (path != VisitState.ROBOTS_PATH) {
-				BURL.toByteArrayList(url, byteList);
-				final BubingJob job = new BubingJob(byteList, ipAddress);
 				try {
+					final URI url = BURL.fromNormalizedSchemeAuthorityAndPathQuery(visitState.schemeAuthority, path);
+					BURL.toByteArrayList(url, byteList);
+					final BubingJob job = new BubingJob(byteList, ipAddress);
 					if (LOGGER.isTraceEnabled()) 
 						LOGGER.trace("Sending out scheme+authority {} with path+query {} and IP {}", 
 								it.unimi.di.law.bubing.util.Util.toString(visitState.schemeAuthority),
@@ -729,6 +729,11 @@ public class Frontier implements JobListener<BubingJob>, AbstractSieve.NewFlowRe
 				catch (NoSuchJobManagerException e) {
 					// This just shouldn't happen.
 					LOGGER.warn("Impossible to submit URL " + BURL.fromNormalizedByteArray(path), e);
+				}
+				catch (Throwable t) {
+					// This just shouldn't happen.
+					LOGGER.error("Unexpected exception", t);
+					return;
 				}
 			}
 			visitState.dequeue();
