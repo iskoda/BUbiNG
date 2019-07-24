@@ -43,6 +43,12 @@ import it.unimi.dsi.fastutil.io.FastBufferedOutputStream;
 import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.net.InetAddress;
+import java.net.URI;
+import java.net.UnknownHostException;
 
 //RELEASE-STATUS: DIST
 
@@ -221,6 +227,31 @@ public class WorkbenchVirtualizer implements Closeable {
 			LOGGER.info("Starting collection...");
 			byteArrayDiskQueues.collect(targetRatio);
 			LOGGER.info("Completed collection.");
+		}
+	}
+
+	/** Save URLs in workbench virtualizer to file.
+	 */
+	public synchronized void saveURLs(PrintWriter writer, VisitState visitState) throws IOException {
+		String address;
+		if (visitState.workbenchEntry != null) {
+			try {
+				address = InetAddress.getByAddress(visitState.workbenchEntry.ipAddress).getHostAddress();
+			} catch ( UnknownHostException t ) {
+				address = "Error";
+			}
+		} else {
+			address = "unresolved";
+		}
+
+		for(int i = (int)byteArrayDiskQueues.count(visitState); i-- != 0;) {
+			byte[] bytes = byteArrayDiskQueues.dequeue(visitState);
+			final PathQueryState pathQueryState = PathQueryState.bytesToPathQueryState(visitState, bytes);
+			final byte[] pathQuery = pathQueryState.pathQuery;
+			final URI url = BURL.fromNormalizedSchemeAuthorityAndPathQuery(visitState.schemeAuthority, pathQuery);
+			final long fetchInterval = pathQueryState.fetchInterval;
+			writer.println(url.toString() + "\t" + BURL.hostFromSchemeAndAuthority(visitState.schemeAuthority) + "\t" + address + "\t" + fetchInterval);
+			this.enqueuePathQueryState(visitState, pathQueryState);
 		}
 	}
 

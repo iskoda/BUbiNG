@@ -71,6 +71,7 @@ import java.util.Date;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
 
@@ -1186,7 +1187,8 @@ public class Frontier implements JobListener<BubingJob>, AbstractSieve.NewFlowRe
 					final PathQueryState pathQueryState = visitState.dequeue();
 					final byte[] pathQuery = pathQueryState.pathQuery;
 					final URI url = BURL.fromNormalizedSchemeAuthorityAndPathQuery(visitState.schemeAuthority, pathQuery);
-					writer.println(url.toString() + "\t" + BURL.hostFromSchemeAndAuthority(visitState.schemeAuthority) + "\t" + address);
+					final long fetchInterval = pathQueryState.fetchInterval;
+					writer.println(url.toString() + "\t" + BURL.hostFromSchemeAndAuthority(visitState.schemeAuthority) + "\t" + address + "\t" + fetchInterval);
 					if (pathQuery != VisitState.ROBOTS_PATH) {
 						visitState.enqueuePathQuery(pathQueryState);
 					} else {
@@ -1196,6 +1198,7 @@ public class Frontier implements JobListener<BubingJob>, AbstractSieve.NewFlowRe
 				if (robots == true) {
 					visitState.enqueueRobots();
 				}
+				this.virtualizer.saveURLs(writer, visitState);
 			}
 		}
 	}
